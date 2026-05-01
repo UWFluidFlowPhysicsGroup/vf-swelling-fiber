@@ -521,7 +521,8 @@ def solve_static_swollen_config(
 def make_exp_params(study_name: str) -> List[ExpParam]:
     DEFAULT_PARAM_2D = ExpParam({
         'MeshName': MESH_BASE_NAME, 'clscale': CLSCALE,
-        'GA': 3, 'DZ': 0.00, 'NZ': 1,
+        'GA': 3,
+        'DZ': 0.00, 'NZ': 1,
         'Ecov': ECOV, 'Ebod': EBOD,
         'gammaFcov': 5e4,
         'gammaFbod': 5e5,
@@ -533,11 +534,11 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
     })
 
     DEFAULT_PARAM_3D = ExpParam({
-        'MeshName': MESH_BASE_NAME, 'clscale': 0.25,
+        'MeshName': MESH_BASE_NAME, 'clscale': CLSCALE,
         'GA': 3,
         'DZ': 1.5, 'NZ': 15,
         'Ecov': ECOV, 'Ebod': EBOD,
-        'gammaFcov': 5e4,#40e4,
+        'gammaFcov': 5e4,
         'gammaFbod': 5e5,
         'vcov': 1, 'mcov': 0.0,
         'psub': 600*10,
@@ -548,19 +549,18 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
     if study_name == 'none':
         params = []
     elif study_name == 'test':
-        vcovs = [1.0, 1.1, 1.2, 1.3]
-        vcovs = [1.0]
+        # vcovs = [1.0, 1.1, 1.2, 1.3]
         params = [
-            DEFAULT_PARAM_3D.substitute({
-                'MeshName': MESH_BASE_NAME, 'clscale': 0.5,
+            DEFAULT_PARAM_2D.substitute({
+                'MeshName': MESH_BASE_NAME, 'clscale': CLSCALE,
                 'GA': 3,
                 'DZ': 1.5, 'NZ': 10,
                 'Ecov': ECOV, 'Ebod': EBOD,
-                'vcov': vcov,
+                'vcov': 1,
                 'psub': 600*10,
                 'dt': 5e-5, 'tf': 0.25
             })
-            for vcov in vcovs
+            #for vcov in vcovs
         ]
     elif study_name == 'independence_2D':
         def make_param(clscale, dt):
@@ -749,6 +749,21 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
 
         params = [
             make_param(*args) for args in it.product(EMODS, VCOVERS, MCOVERS)
+        ]
+    elif study_name == '2D_test':
+        params = [
+            DEFAULT_PARAM_2D.substitute({
+                'MeshName': MESH_BASE_NAME,
+                'clscale': 0.5,
+                'GA': 3,
+                'DZ': 0, 'NZ': 1,
+                'Ecov': ECOV,
+                'Ebod': EBOD,
+                'vcov': 1,
+                'psub': 600*10,
+                'dt': 5e-5,
+                'tf': 0.25
+            })
         ]
     else:
         raise ValueError(f"Unknown `--study-name` {study_name}")

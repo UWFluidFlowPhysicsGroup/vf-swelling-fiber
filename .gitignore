@@ -1,1 +1,4 @@
 *Zone.Identifier
+*.h5
+*.xdmf
+out/*
