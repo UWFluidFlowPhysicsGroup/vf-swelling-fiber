@@ -1,5 +1,5 @@
 """
-Run a sequence of vocal fold simulations with swelling
+Run a sequence of vocal fold simulations without swelling
 """
 
 from typing import List, Tuple, Mapping, Optional, Callable
@@ -7,15 +7,16 @@ from numpy.typing import NDArray
 
 from os import path
 import argparse as ap
-import multiprocessing as mp
+import multiprocessing as mp    # parallel execution
 import itertools as it
 import functools
 from typing import List, Mapping
 
 import numpy as np
-import dolfin as dfn
+import dolfin as dfn 
 import h5py
 
+# --- Project-specific imports ---
 from femvf import forward, static, statefile as sf, meshutils
 from femvf.models.transient import solid, fluid, base as trabase, coupled
 from femvf.models.dynamical import base as dynbase
@@ -30,20 +31,17 @@ from exputils import postprocutils, exputils
 dfn.set_log_level(50)
 
 ## Defaults for 'nominal' parameter values
-MESH_BASE_NAME = 'M5_BC'
+MESH_BASE_NAME = 'M5_BC'    # base mesh name
+CLSCALE = 0.25              # mesh scaling
+POISSONS_RATIO = 0.4        # Poisson’s ratio
+PSUB = 400 * 10             # subglottal pressure (Pa)
 
-CLSCALE = 0.25
+VCOVERS = np.array([1.0, 1.15 , 1.3])   # cover swelling multipliers
+MCOVERS = np.array([-0.8])              # cover swelling modifiers
 
-POISSONS_RATIO = 0.4
-
-PSUB = 400 * 10
-
-VCOVERS = np.array([1.0, 1.15 , 1.3])
-MCOVERS = np.array([ -0.8])
-
-
-ECOV = 2.5e4
-EBOD = 5e4
+ECOV = 2.5e4   # elastic modulus (cover)
+EBOD = 5e4     # elastic modulus (body)
+ESCAR = 10e4   # elastic modulus (scar tissue)
 
 PARAM_SPEC = {
     'MeshName': str,
@@ -53,6 +51,9 @@ PARAM_SPEC = {
     'clscale': float,
     'Ecov': float,
     'Ebod': float,
+    'Escar': float,
+    'gammaFcov': float,
+    'gammaFbod': float,
     'vcov': float,
     'mcov': float,
     'psub': float,
@@ -63,10 +64,17 @@ PARAM_SPEC = {
 }
 PARAM_FORMAT_STRS = {'vcov': '.4e'}
 
+import scipy.special  # Add this import at the top if not present
+
+def sigmoid(x, x0=0.0, k=1.0):
+    """Sigmoid function for Smooth logistic transition function.. """""
+    return 1 / (1 + np.exp(-k * (x - x0)))
+
 ExpParam = exputils.make_parameters(PARAM_SPEC, PARAM_FORMAT_STRS)
 
 Model = coupled.BaseTransientFSIModel
-
+# Builds the unique filename string based on parameter values.
+## TODO make new mesh name for scar tissue parameters, brute forcing for now just to test
 def setup_mesh_name(param: ExpParam) -> str:
     """
     Return the name of the mesh
@@ -76,8 +84,9 @@ def setup_mesh_name(param: ExpParam) -> str:
     clscale = param['clscale']
     dz = param['DZ']
     nz = param['NZ']
-    return f'{base_name}--GA{ga:.2f}--DZ{dz:.2f}--NZ{nz:d}--clscale{clscale:.2e}'
-
+    # return f'{base_name}--GA{ga:.2f}--DZ{dz:.2f}--NZ{nz:d}--clscale{clscale:.2e}'
+    return f'BC_Half'
+#Loads the transient FSI (fluid–structure interaction) model considering fiber direction from mesh.
 def setup_model(param: ExpParam) -> Model:
     """
     Return the model
@@ -93,14 +102,14 @@ def setup_model(param: ExpParam) -> Model:
 
     model = load_transient_fsi_model(
         mesh_path, None,
-        SolidType=solid.SwellingKelvinVoigtWEpitheliumNoShape,
+        SolidType=solid.KelvinVoigtWEpithelium,   #with No swelling or fiber effect
         FluidType=fluid.BernoulliAreaRatioSep,
         zs=zs
     )
     return model
 
 def setup_state_control_props(
-        params: ExpParam, model: Model
+        params: ExpParam, model: Model 
     ) -> Tuple[bv.BlockVector, bv.BlockVector, bv.BlockVector]:
     """
     Return a (state, controls, prop) tuple defining a transient run
@@ -108,10 +117,10 @@ def setup_state_control_props(
     ## Set 'basic' model properties
     # These properties don't include the glottal gap since you may/may not
     # want to modify the glottal gap based on the swelling level
-    prop = setup_basic_props(params, model)
+    prop = setup_basic_props(params, model)  # material/swelling props
     model.set_prop(prop)
 
-    ## Set the initial state
+    ## Set the initial state 
     # The initial state is based on the post-swelling static configuration
     state0 = setup_ini_state(params, model)
 
@@ -125,7 +134,7 @@ def setup_state_control_props(
         ymax = (model.solid.XREF + state0.sub['u'])[1::ndim].max()
     else:
         ymax = (model.solid.XREF)[1::ndim].max()
-    ygap = 0.03 # 0.3 mm half-gap -> 0.6 mm glottal gap
+    ygap = 0.03 # 0.3 mm half-gap -> 0.6 mm glottal gap  ## initial half-gap
     ycoll_offset = 1/10*ygap
 
     prop['ycontact'] = ymax + ygap - ycoll_offset
@@ -141,6 +150,7 @@ def setup_state_control_props(
 def setup_basic_props(param: ExpParam, model: Model) -> bv.BlockVector:
     """
     Set the properties vector
+    # FEM mesh + mapping from labeled regions -> DOFs
     """
     mesh = model.solid.residual.mesh()
     forms = model.solid.residual.form
@@ -154,7 +164,7 @@ def setup_basic_props(param: ExpParam, model: Model) -> bv.BlockVector:
 
     prop = model.prop.copy()
     # prop[:] = 0
-    ## Solid constant properties
+    ## Solid constant properties  # Assign baseline solid/fluid constants
     prop['rho'] = 1.0
     prop['eta'] = 5.0
     prop['kcontact'] = 1e15
@@ -185,12 +195,20 @@ def setup_basic_props(param: ExpParam, model: Model) -> bv.BlockVector:
         **modify_kwargs
     )
 
-    ## Set VF layer properties
+    ## Set VF layer properties  # Apply elastic moduli and fiber moduli for body/cover 
     emods = {
         'cover': param['Ecov'],
-        'body': param['Ebod'],
+        'body': param['Ebod']
+        # 'scar': param['Escar']
     }
-    prop = _set_layer_props(prop, emods, cellregion_to_sdof)
+
+    gamma_fiber = {
+        'cover': param['gammaFcov'],
+        'body': param['gammaFbod']
+        # 'scar': param['gammaFscar']
+    }
+    prop = _set_layer_props(model, prop, emods,gamma_fiber, cellregion_to_sdof)
+    #prop = _set_layer_props(model,prop, emods, cellregion_to_sdof)
 
     return prop
 
@@ -215,8 +233,10 @@ def setup_ini_state(param: ExpParam, model: Model) -> bv.BlockVector:
     state0[:] = 0.0
     model.solid.control[:] = 0.0
 
-    vcov = param['vcov']
-    nload = max(int(round((vcov-1)/0.025)), 1)
+    # vcov = param['vcov']
+    # nload = max(int(round((vcov-1)/0.025)), 1)
+    vcov = 1
+    nload = 0
 
     prop = setup_basic_props(param, model)
     model.set_prop(prop)
@@ -325,45 +345,153 @@ def _set_swelling_props(
 
     return prop
 
+import numpy as np
+import dolfin as dfn
+
+# optional: nearest neighbor accel (fallback to naive if missing)
+try:
+    from scipy.spatial import cKDTree as _KDTree
+except Exception:
+    _KDTree = None
+
+def _to_np_idx(x):
+    """Robustly convert a list/iterable of indices to a 1D np.int64 array."""
+    if x is None:
+        return np.empty(0, dtype=int)
+    try:
+        arr = np.asarray(x, dtype=int)
+        if arr.ndim == 0:
+            arr = arr.reshape(1)
+        return arr
+    except Exception:
+        return np.array(list(x), dtype=int)
+
 def _set_layer_props(
-        prop: bv.BlockVector,
+        model,
+        prop,
         emods: Mapping[str, float],
+        gamma_fiber: Mapping[str, float],
         cellregion_to_sdof: Mapping[str, NDArray]
-    ) -> bv.BlockVector:
+    ):
     """
-    Set properties for each layer of a model
-
-    Parameters
-    ----------
-    emod_vec :
-        The vector of nodal values of elastic moduli
-    emods : dict
-        A mapping from named regions to modulus values
-    cellregion_to_sdof:
-        A mapping from names regions to mesh function values
+    Set properties for each layer using a sigmoid centered on the actual
+    body–cover interface (distance-based), with robust handling of cell ids.
     """
-    # dofs_cov = np.unique(
-    #     np.concatenate(
-    #         [cellregion_to_sdof[label] for label in ['medial', 'inferior', 'superior']]
-    #     )
-    # )
-    dofs_cov = np.unique(
-        np.concatenate(
-            [cellregion_to_sdof[label] for label in ['cover']]
-        )
-    )
-    dofs_bod = cellregion_to_sdof['body']
-    prop['emod'][dofs_bod] = emods['body']
-    prop['emod'][dofs_cov] = emods['cover']
+    mesh = model.solid.residual.mesh()
+    dim  = mesh.geometry().dim()
+    cells = mesh.cells()
+    Xv = mesh.coordinates()
 
+    # --- function spaces for properties ---
+    V_E = model.solid.residual.form['coeff.prop.emod'].function_space()
+    V_G = model.solid.residual.form['coeff.prop.gamma_fiber'].function_space()
+    Xd_E = V_E.tabulate_dof_coordinates().reshape(-1, dim)
+    Xd_G = V_G.tabulate_dof_coordinates().reshape(-1, dim)
+
+    # --- find interface vertices from labeled cells (ROBUST ARRAYS) ---
+    mf_cell = model.solid.residual.mesh_function('cell')
+    lab2val = model.solid.residual.mesh_function_label_to_value('cell')
+
+    if 'cover' in lab2val:
+        cover_cell_ids = _to_np_idx(mf_cell.where_equal(lab2val['cover']))
+    # elif 'scar' in lab2val:
+    #     scar_cell_ids = _to_np_idx(mf_cell.where_equal(lab2val['scar']))
+    else:
+        # legacy split cover labels
+        parts = []
+        for k in ('inferior', 'medial', 'superior'):
+            if k in lab2val:
+                parts.append(_to_np_idx(mf_cell.where_equal(lab2val[k])))
+        cover_cell_ids = np.concatenate(parts) if parts else np.empty(0, dtype=int)
+
+    body_cell_ids = _to_np_idx(mf_cell.where_equal(lab2val['body'])) if 'body' in lab2val else np.empty(0, dtype=int)
+
+    verts_cover = np.unique(cells[cover_cell_ids].ravel()) if cover_cell_ids.size else np.empty(0, dtype=int)
+    verts_body  = np.unique(cells[body_cell_ids ].ravel()) if body_cell_ids.size  else np.empty(0, dtype=int)
+    # verts_scar  = np.unique(cells[scar_cell_ids ].ravel()) if scar_cell_ids.size  else np.empty(0, dtype=int)
+    verts_interface = np.array(sorted(set(verts_cover).intersection(set(verts_body))), dtype=int)
+
+    # --- build signed distance at DOF coords (cover +, body -) ---
+    def signed_distance_for(V_space, Xd, region_to_sdof):
+        # region signs from dof-index maps
+        if 'cover' in region_to_sdof:
+            dofs_cover = np.unique(region_to_sdof['cover'])
+        # elif 'scar' in region_to_sdof:
+        #     dofs_scar = np.unique(region_to_sdof['scar'])
+        else:
+            dofs_cover = np.unique(np.concatenate([
+                region_to_sdof.get(k, np.empty(0, dtype=int))
+                for k in ('inferior','medial','superior')
+            ])) if any(k in region_to_sdof for k in ('inferior','medial','superior')) else np.empty(0, dtype=int)
+        dofs_body = np.unique(region_to_sdof.get('body', np.empty(0, dtype=int)))
+
+        sign = np.zeros(Xd.shape[0], dtype=float)
+        sign[dofs_cover] = +1.0
+        sign[dofs_body]  = -1.0
+        sign[sign == 0.0] = +1.0  # unlabeled -> treat as cover
+
+        # distance to interface (fallback to mid-y if no interface found)
+        if verts_interface.size >= 1:
+            Xi = Xv[verts_interface, :]
+            if _KDTree is not None and Xi.shape[0] > 0:
+                dist = _KDTree(Xi).query(Xd, k=1)[0]
+            else:
+                # naive fallback
+                diffs = Xd[:, None, :] - Xi[None, :, :]
+                dist = np.sqrt(np.sum(diffs*diffs, axis=2)).min(axis=1)
+        else:
+            y0 = 0.5*(Xv[:,1].min() + Xv[:,1].max())
+            dist = np.abs(Xd[:,1] - y0)
+
+        return sign * dist  # <0 body side, >0 cover side
+
+    sd_E = signed_distance_for(V_E, Xd_E, cellregion_to_sdof)
+    sd_G = signed_distance_for(V_G, Xd_G, cellregion_to_sdof)
+
+    # --- pick logistic thickness from interface spacing ---
+    def interface_spacing():
+        if verts_interface.size >= 2:
+            Xi = Xv[verts_interface, :]
+            if _KDTree is not None:
+                nn = _KDTree(Xi).query(Xi, k=2)[0][:, 1]
+                nn = nn[np.isfinite(nn)]
+                if nn.size:
+                    return float(np.median(nn))
+            # very rough fallback
+            return float(np.median(np.linalg.norm(np.diff(np.sort(Xi, axis=0), axis=0), axis=1))) if Xi.shape[0] > 1 else 1.0
+        return 1.0
+
+    h_int = interface_spacing()
+    thickness = 3.0 * max(h_int, 1e-12)
+    k = 4.0 / thickness                  # 10–90% logistic width ~ thickness
+
+    def logistic(signed_d):
+        return 1.0 / (1.0 + np.exp(-k * signed_d))
+
+    alpha_E = logistic(sd_E)             # ~0 body, ~1 cover
+    alpha_G = logistic(sd_G)
+
+    # --- blend properties ---
+    E_cover, E_body = float(emods['cover']), float(emods['body'])
+    G_cover, G_body = float(gamma_fiber['cover']), float(gamma_fiber['body'])
+
+    E_vals = E_cover * alpha_E + E_body * (1.0 - alpha_E)
+    G_vals = G_cover * alpha_G + G_body * (1.0 - alpha_G)
+
+    E_fun = dfn.Function(V_E); E_fun.vector()[:] = E_vals
+    G_fun = dfn.Function(V_G); G_fun.vector()[:] = G_vals
+
+    prop['emod'][:]        = E_fun.vector()[:]
+    prop['gamma_fiber'][:] = G_fun.vector()[:]
+
+    # --- remaining constants as in your original code ---
     prop['nu'][:] = POISSONS_RATIO
-
-    # membrane/epithelium properties
     prop['emod_membrane'][:] = 50e3 * 10
-    # prop['emod_membrane'][:] = 0.0
-    prop['th_membrane'][:] = 0.005
-    prop['nu_membrane'][:] = POISSONS_RATIO
+    prop['th_membrane'][:]   = 0.005
+    prop['nu_membrane'][:]   = POISSONS_RATIO
+
     return prop
+
 
 
 def solve_static_swollen_config(
@@ -406,9 +534,13 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
     DEFAULT_PARAM_2D = ExpParam({
         'MeshName': MESH_BASE_NAME, 'clscale': CLSCALE,
         'GA': 3, 'DZ': 0.00, 'NZ': 1,
-        'Ecov': ECOV, 'Ebod': EBOD,
+        'Ecov': ECOV,
+        'Ebod': EBOD,
+        'Escar' : ESCAR,
+        'gammaFcov': 5e4,
+        'gammaFbod': 5e5,
         'vcov': 1.0, 'mcov': 0.0,
-        'psub': PSUB,
+        'psub': 600*10,
         'dt': DT, 'tf': TF,
         'ModifyEffect': '',
         'SwellingDistribution': 'uniform'
@@ -418,9 +550,13 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
         'MeshName': MESH_BASE_NAME, 'clscale': 0.25,
         'GA': 3,
         'DZ': 1.5, 'NZ': 15,
-        'Ecov': ECOV, 'Ebod': EBOD,
+        'Ecov': ECOV,
+        'Ebod': EBOD,
+        'Escar' : ESCAR,
+        'gammaFcov': 5e4,#40e4,
+        'gammaFbod': 5e5,
         'vcov': 1, 'mcov': 0.0,
-        'psub': PSUB,
+        'psub': 600*10,
         'dt': DT, 'tf': TF,
         'ModifyEffect': '',
         'SwellingDistribution': 'uniform'
@@ -435,37 +571,48 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
                 'DZ': 0, 'NZ': 1,
                 'Ecov': ECOV,
                 'Ebod': EBOD,
+                'Escar' : ESCAR,
                 'vcov': 1.0,
                 'psub': 600*10,
                 'dt': 5e-5, 'tf': 0.25
             })
         ]
     elif study_name == 'main_2D':
-        def make_param(elayers, vcov, mcov):
+        def make_param(elayers, vcov, mcov, gammaFcov, gammaFbod):
             return DEFAULT_PARAM_2D.substitute({
-                'Ecov': elayers['cover'], 'Ebod': elayers['body'],
-                'vcov': vcov, 'mcov': mcov
-            })
-        vcovs = np.array([1.0, 1.1, 1.2, 1.3])
-        mcovs = np.array([0.0, -0.8])
+                'Ecov': elayers['cover'],
+                'Ebod': elayers['body'],
+                'vcov': vcov,
+                'mcov': mcov,
+                'gammaFcov': gammaFcov,
+                'gammaFbod': gammaFbod
+         })
+
+        # Define allowed gamma pairs
+        GAMMA_PAIRS = [
+            (0.0, 0.0),     # no fiber
+            (5e4, 5e5)      # fiber
+        ]
 
         params = [
-            make_param(*args) for args in it.product(EMODS, VCOVERS, MCOVERS)
-        ]
+            make_param(elayers, vcov, mcov, gammaFcov, gammaFbod)
+            for elayers, vcov, mcov, (gammaFcov, gammaFbod) 
+            in it.product(EMODS, VCOVERS, MCOVERS, GAMMA_PAIRS)
+    ]
     elif study_name == 'main_3D':
         # This case is the setup for the unswollen 3D state
         def make_param(elayers, vcov, mcov, damage):
             return DEFAULT_PARAM_3D.substitute({
                 'Ecov': elayers['cover'], 'Ebod': elayers['body'],
                 'vcov': vcov, 'mcov': mcov,
+
                 'SwellingDistribution': 'uniform'
             })
-
+        
         vcovs = np.array([1, 1.15, 1.3])
-        mcovs = np.array([ -0.8])
+        mcovs = np.array([-0.8])
         damage_measures = [
-            'uniform'
-            #'field.tavg_viscous_rate',
+            'field.tavg_viscous_rate',
             # 'field.tavg_strain_energy'
         ]
 
@@ -475,10 +622,11 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
         ]
     else:
         raise ValueError(f"Unknown `--study-name` {study_name}")
+
     return params
 
 
-## Main functions for running/postprocessing simulations
+## Main functions for running/postprocessing simulations #Integrates transient model and writes results to HDF5.
 def run(
         param: dict,
         out_dir: str
@@ -692,9 +840,42 @@ def get_result_name_to_postprocess(
             for ii in range(f.size)
         ]
         return np.array(qs)
+    
+    def proc_glottal_flow_rate(f: sf.StateFile) -> NDArray:
+        """
+    Return the glottal flow rate vector (time series).
+
+    For each time step, average each fluid's q along its axial stations
+    using trapezoidal weights (0.5 at ends, 1.0 interior), then sum across
+    fluids. Works whether q is scalar or a 1D array.
+    """
+        q_t = []
+        num_fluid = len(f.model.fluids)
+
+        for i in range(f.size):
+            q_sum = 0.0
+            for n in range(num_fluid):
+                qn_like = f.get_state(i)[f"fluid{n}.q"]  # numpy-like
+                qn = np.asarray(qn_like)                 # ensure real np.ndarray
+
+                if qn.ndim == 0 or qn.size == 1:
+                    # scalar flow or single-station array
+                    q_avg = float(qn.reshape(-1)[0])
+                else:
+                    # trapezoidal average along axial direction
+                    w = np.ones(qn.size, dtype=float)
+                    w[0] = w[-1] = 0.5
+                    q_avg = float((qn * w).sum() / w.sum())
+
+                q_sum += q_avg
+
+            q_t.append(q_sum)
+
+        return np.asarray(q_t, dtype=float)
+
 
     result_name_to_postprocess = {
-        'time.q': proc_q,
+        'time.q': proc_glottal_flow_rate,
         'time.gw': TimeSeries(proc_gw),
         'time.t': proc_time,
         'time.field.p': TimeSeries(slsig.FSIPressure(model)),

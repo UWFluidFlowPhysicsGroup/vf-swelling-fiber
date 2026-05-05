@@ -149,7 +149,7 @@ def setup_basic_prop(param: ExpParam, model: Model) -> bv.BlockVector:
     prop = _set_swelling_prop(param, model, prop, cellregion_to_sdof, **modify_kwargs)
 
     ## Set VF layer properties
-    emods = {'cover': param['Ecov'], 'body': param['Ebod']}
+    emods = {'cover': param['Ecov'], 'body': param['Ebod'],'scar': param['Escar']}
     prop = _set_layer_prop(prop, emods, cellregion_to_sdof)
 
     return prop
