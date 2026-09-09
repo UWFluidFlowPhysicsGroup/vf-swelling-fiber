@@ -85,7 +85,8 @@ def setup_mesh_name(param: ExpParam) -> str:
     dz = param['DZ']
     nz = param['NZ']
     # return f'{base_name}--GA{ga:.2f}--DZ{dz:.2f}--NZ{nz:d}--clscale{clscale:.2e}'
-    return f'BC_Half'
+    return f'BCS_0.16_0.08'
+    # return f'BC_Half'
 #Loads the transient FSI (fluid–structure interaction) model considering fiber direction from mesh.
 def setup_model(param: ExpParam) -> Model:
     """
@@ -198,14 +199,14 @@ def setup_basic_props(param: ExpParam, model: Model) -> bv.BlockVector:
     ## Set VF layer properties  # Apply elastic moduli and fiber moduli for body/cover 
     emods = {
         'cover': param['Ecov'],
-        'body': param['Ebod']
-        # 'scar': param['Escar']
+        'body': param['Ebod'],
+        'scar': param['Escar']
     }
 
     gamma_fiber = {
         'cover': param['gammaFcov'],
-        'body': param['gammaFbod']
-        # 'scar': param['gammaFscar']
+        'body': param['gammaFbod'],
+        'scar': param['gammaFscar']
     }
     prop = _set_layer_props(model, prop, emods,gamma_fiber, cellregion_to_sdof)
     #prop = _set_layer_props(model,prop, emods, cellregion_to_sdof)
@@ -394,8 +395,8 @@ def _set_layer_props(
 
     if 'cover' in lab2val:
         cover_cell_ids = _to_np_idx(mf_cell.where_equal(lab2val['cover']))
-    # elif 'scar' in lab2val:
-    #     scar_cell_ids = _to_np_idx(mf_cell.where_equal(lab2val['scar']))
+    elif 'scar' in lab2val:
+        scar_cell_ids = _to_np_idx(mf_cell.where_equal(lab2val['scar']))
     else:
         # legacy split cover labels
         parts = []
@@ -408,7 +409,7 @@ def _set_layer_props(
 
     verts_cover = np.unique(cells[cover_cell_ids].ravel()) if cover_cell_ids.size else np.empty(0, dtype=int)
     verts_body  = np.unique(cells[body_cell_ids ].ravel()) if body_cell_ids.size  else np.empty(0, dtype=int)
-    # verts_scar  = np.unique(cells[scar_cell_ids ].ravel()) if scar_cell_ids.size  else np.empty(0, dtype=int)
+    verts_scar  = np.unique(cells[scar_cell_ids ].ravel()) if scar_cell_ids.size  else np.empty(0, dtype=int)
     verts_interface = np.array(sorted(set(verts_cover).intersection(set(verts_body))), dtype=int)
 
     # --- build signed distance at DOF coords (cover +, body -) ---
@@ -416,8 +417,8 @@ def _set_layer_props(
         # region signs from dof-index maps
         if 'cover' in region_to_sdof:
             dofs_cover = np.unique(region_to_sdof['cover'])
-        # elif 'scar' in region_to_sdof:
-        #     dofs_scar = np.unique(region_to_sdof['scar'])
+        elif 'scar' in region_to_sdof:
+            dofs_scar = np.unique(region_to_sdof['scar'])
         else:
             dofs_cover = np.unique(np.concatenate([
                 region_to_sdof.get(k, np.empty(0, dtype=int))
@@ -565,7 +566,7 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
         params = []
     elif study_name == 'scarring_coarse':
         params = [
-            DEFAULT_PARAM_3D.substitute({
+            DEFAULT_PARAM_2D.substitute({
                 'MeshName': MESH_BASE_NAME, 'clscale': 0.5,
                 'GA': 3,
                 'DZ': 0, 'NZ': 1,
@@ -927,7 +928,7 @@ if __name__ == '__main__':
 
     # Pack up the emod arguments to a dict format
     _emods = np.array([[2.5, 5.0]]) * 1e3 * 10
-    layer_labels = ['cover', 'body']
+    layer_labels = ['cover', 'body', 'scar']
     EMODS = [
         {label: value for label, value in zip(layer_labels, layer_values)}
         for layer_values in _emods

@@ -188,7 +188,7 @@ def setup_basic_props(param: ExpParam, model: Model) -> bv.BlockVector:
     ## Set VF layer properties
     emods = {
         'cover': param['Ecov'],
-        'body': param['Ebod'],
+        'body': param['Ebod']
     }
     prop = _set_layer_props(prop, emods, cellregion_to_sdof)
 
@@ -467,6 +467,28 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
             'uniform'
             #'field.tavg_viscous_rate',
             # 'field.tavg_strain_energy'
+        ]
+
+        params = [
+            make_param(*args)
+            for args in it.product(EMODS, vcovs, mcovs, damage_measures)
+        ]
+    elif study_name == 'main_3D_coarse':
+        # This case is the setup for the unswollen 3D state
+        def make_param(elayers, vcov, mcov, damage):
+            return DEFAULT_PARAM_3D.substitute({
+                'MeshName': MESH_BASE_NAME, 'clscale': 0.5,
+                'GA': 3, 'DZ': 1.5, 'NZ': 10,
+                'Ecov': elayers['cover'], 'Ebod': elayers['body'],
+                'vcov': vcov, 'mcov': mcov,
+                'SwellingDistribution': damage
+            })
+
+        vcovs = np.array([1.0, 1.1, 1.2, 1.3])
+        mcovs = np.array([0.0, -0.8])
+        damage_measures = [
+            'field.tavg_viscous_rate',
+            'field.tavg_strain_energy'
         ]
 
         params = [

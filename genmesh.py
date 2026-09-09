@@ -7,30 +7,30 @@ MSH_VER = 2.0
 SIZE_FACTOR = 0.2
 
 
-# def proc_BC():
-#     """
-#     Generate a mesh for BC_Half.STEP geometry
-#     """
-#     gmsh.clear()
-#     gmsh.model.add('main')
+def proc_BC():
+    """
+    Generate a mesh for BC_Half.STEP geometry
+    """
+    gmsh.clear()
+    gmsh.model.add('main')
 
-#     gmsh.option.set_string('Geometry.OCCTargetUnit', 'MM')
-#     gmsh.merge(f'BC_Half.STEP')
+    gmsh.option.set_string('Geometry.OCCTargetUnit', 'MM')
+    gmsh.merge(f'BC_Half.STEP')
 
-#     gmsh.model.add_physical_group(2, [1], name='body')
-#     gmsh.model.add_physical_group(2, [2], name='cover')
+    gmsh.model.add_physical_group(2, [1], name='body')
+    gmsh.model.add_physical_group(2, [2], name='cover')
     
-#     gmsh.model.add_physical_group(1, [8, 9, 10, 11, 12], name='pressure')
-#     gmsh.model.add_physical_group(1, [13, 7, 1], name='fixed')
+    gmsh.model.add_physical_group(1, [8, 9, 10, 11, 12], name='pressure')
+    gmsh.model.add_physical_group(1, [13, 7, 1], name='fixed')
 
-#     gmsh.model.add_physical_group(0, [10], name='separation-inf')
-#     gmsh.model.add_physical_group(0, [9], name='separation-sup')
+    gmsh.model.add_physical_group(0, [10], name='separation-inf')
+    gmsh.model.add_physical_group(0, [9], name='separation-sup')
 
-#     gmsh.option.set_number('Mesh.MshFileVersion', MSH_VER)
-#     gmsh.option.set_number('Mesh.MeshSizeFactor', SIZE_FACTOR)
+    gmsh.option.set_number('Mesh.MshFileVersion', MSH_VER)
+    gmsh.option.set_number('Mesh.MeshSizeFactor', SIZE_FACTOR)
 
-#     gmsh.model.mesh.generate(2)
-#     gmsh.write(f'BC_Half.msh')
+    gmsh.model.mesh.generate(2)
+    gmsh.write(f'BC_Half.msh')
 
 def proc_BCS():
     """
@@ -59,5 +59,5 @@ def proc_BCS():
     gmsh.write(f'BCS_0.16_0.08.msh')
 
 if __name__ == '__main__':
-    # proc_BC()
+    proc_BC()
     proc_BCS()
