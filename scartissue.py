@@ -54,7 +54,6 @@ PARAM_SPEC = {
     'Escar': float,
     'gammaFcov': float,
     'gammaFbod': float,
-    'gammaFscar': float,
     'vcov': float,
     'mcov': float,
     'psub': float,
@@ -206,8 +205,7 @@ def setup_basic_props(param: ExpParam, model: Model) -> bv.BlockVector:
 
     gamma_fiber = {
         'cover': param['gammaFcov'],
-        'body': param['gammaFbod'],
-        'scar': param['gammaFscar']
+        'body': param['gammaFbod']
     }
     prop = _set_layer_props(model, prop, emods,gamma_fiber, cellregion_to_sdof)
     #prop = _set_layer_props(model,prop, emods, cellregion_to_sdof)
@@ -555,8 +553,7 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
         'Ebod': EBOD,
         'Escar' : ESCAR,
         'gammaFcov': 5e4,
-        'gammaFbod': 5e5,
-        'gammaFscar': 5e5,        
+        'gammaFbod': 5e5,        
         'vcov': 1.0, 'mcov': 0.0,
         'psub': 600*10,
         'dt': DT, 'tf': TF,
@@ -573,7 +570,6 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
         'Escar' : ESCAR,
         'gammaFcov': 5e4,#40e4,
         'gammaFbod': 5e5,
-        'gammaFscar': 5e5,
         'vcov': 1, 'mcov': 0.0,
         'psub': 600*10,
         'dt': DT, 'tf': TF,
