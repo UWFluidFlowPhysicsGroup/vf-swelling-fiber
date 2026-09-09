@@ -54,6 +54,7 @@ PARAM_SPEC = {
     'Escar': float,
     'gammaFcov': float,
     'gammaFbod': float,
+    'gammaFscar': float,
     'vcov': float,
     'mcov': float,
     'psub': float,
@@ -103,7 +104,7 @@ def setup_model(param: ExpParam) -> Model:
 
     model = load_transient_fsi_model(
         mesh_path, None,
-        SolidType=solid.KelvinVoigtWEpithelium,   #with No swelling or fiber effect
+        SolidType=solid.SwellingKelvinVoigtWEpitheliumNoShape,   # swelling, no fiber
         FluidType=fluid.BernoulliAreaRatioSep,
         zs=zs
     )
@@ -282,6 +283,7 @@ def _set_swelling_props(
         )
     )
     dofs_bod = cellregion_to_sdof['body']
+    dofs_scar = cellregion_to_sdof['scar']
     # dofs_sha = np.intersect1d(dofs_cov, dofs_bod)
 
     # prop['k_swelling'][0] = KSWELL_FACTOR * 10e3*10
@@ -291,6 +293,7 @@ def _set_swelling_props(
     if modify_geometry:
         prop['v_swelling'][dofs_cov] = param['vcov']
         prop['v_swelling'][dofs_bod] = 1.0
+        prop['v_swelling'][dofs_scar] = 1.0
 
     prop['rho'][:] = RHO_VF
 
@@ -343,6 +346,7 @@ def _set_swelling_props(
         # print(dfn.assemble(v_swell*dx_cover)/dfn.assemble(1*dx_cover))
         prop['v_swelling'][:] = v_swelling.vector()[:]
         prop['v_swelling'][dofs_bod] = 1.0
+        prop['v_swelling'][dofs_scar] = 1.0
 
     return prop
 
@@ -384,10 +388,13 @@ def _set_layer_props(
     Xv = mesh.coordinates()
 
     # --- function spaces for properties ---
-    V_E = model.solid.residual.form['coeff.prop.emod'].function_space()
-    V_G = model.solid.residual.form['coeff.prop.gamma_fiber'].function_space()
+    form = model.solid.residual.form
+    has_fiber = 'coeff.prop.gamma_fiber' in form
+    V_E = form['coeff.prop.emod'].function_space()
     Xd_E = V_E.tabulate_dof_coordinates().reshape(-1, dim)
-    Xd_G = V_G.tabulate_dof_coordinates().reshape(-1, dim)
+    if has_fiber:
+        V_G = form['coeff.prop.gamma_fiber'].function_space()
+        Xd_G = V_G.tabulate_dof_coordinates().reshape(-1, dim)
 
     # --- find interface vertices from labeled cells (ROBUST ARRAYS) ---
     mf_cell = model.solid.residual.mesh_function('cell')
@@ -395,8 +402,6 @@ def _set_layer_props(
 
     if 'cover' in lab2val:
         cover_cell_ids = _to_np_idx(mf_cell.where_equal(lab2val['cover']))
-    elif 'scar' in lab2val:
-        scar_cell_ids = _to_np_idx(mf_cell.where_equal(lab2val['scar']))
     else:
         # legacy split cover labels
         parts = []
@@ -406,29 +411,34 @@ def _set_layer_props(
         cover_cell_ids = np.concatenate(parts) if parts else np.empty(0, dtype=int)
 
     body_cell_ids = _to_np_idx(mf_cell.where_equal(lab2val['body'])) if 'body' in lab2val else np.empty(0, dtype=int)
+    scar_cell_ids = _to_np_idx(mf_cell.where_equal(lab2val['scar'])) if 'scar' in lab2val else np.empty(0, dtype=int)
 
     verts_cover = np.unique(cells[cover_cell_ids].ravel()) if cover_cell_ids.size else np.empty(0, dtype=int)
     verts_body  = np.unique(cells[body_cell_ids ].ravel()) if body_cell_ids.size  else np.empty(0, dtype=int)
     verts_scar  = np.unique(cells[scar_cell_ids ].ravel()) if scar_cell_ids.size  else np.empty(0, dtype=int)
-    verts_interface = np.array(sorted(set(verts_cover).intersection(set(verts_body))), dtype=int)
+    verts_interface = np.array(sorted(
+        set(verts_cover).intersection(set(verts_body))
+        | set(verts_cover).intersection(set(verts_scar))
+        | set(verts_body).intersection(set(verts_scar))
+    ), dtype=int)
 
     # --- build signed distance at DOF coords (cover +, body -) ---
     def signed_distance_for(V_space, Xd, region_to_sdof):
         # region signs from dof-index maps
         if 'cover' in region_to_sdof:
             dofs_cover = np.unique(region_to_sdof['cover'])
-        elif 'scar' in region_to_sdof:
-            dofs_scar = np.unique(region_to_sdof['scar'])
         else:
             dofs_cover = np.unique(np.concatenate([
                 region_to_sdof.get(k, np.empty(0, dtype=int))
                 for k in ('inferior','medial','superior')
             ])) if any(k in region_to_sdof for k in ('inferior','medial','superior')) else np.empty(0, dtype=int)
         dofs_body = np.unique(region_to_sdof.get('body', np.empty(0, dtype=int)))
+        dofs_scar = np.unique(region_to_sdof.get('scar', np.empty(0, dtype=int)))
 
         sign = np.zeros(Xd.shape[0], dtype=float)
         sign[dofs_cover] = +1.0
         sign[dofs_body]  = -1.0
+        sign[dofs_scar]  = -1.0  # treat scar like body for the cover/body blend
         sign[sign == 0.0] = +1.0  # unlabeled -> treat as cover
 
         # distance to interface (fallback to mid-y if no interface found)
@@ -447,7 +457,7 @@ def _set_layer_props(
         return sign * dist  # <0 body side, >0 cover side
 
     sd_E = signed_distance_for(V_E, Xd_E, cellregion_to_sdof)
-    sd_G = signed_distance_for(V_G, Xd_G, cellregion_to_sdof)
+    sd_G = signed_distance_for(V_G, Xd_G, cellregion_to_sdof) if has_fiber else None
 
     # --- pick logistic thickness from interface spacing ---
     def interface_spacing():
@@ -470,20 +480,26 @@ def _set_layer_props(
         return 1.0 / (1.0 + np.exp(-k * signed_d))
 
     alpha_E = logistic(sd_E)             # ~0 body, ~1 cover
-    alpha_G = logistic(sd_G)
 
     # --- blend properties ---
     E_cover, E_body = float(emods['cover']), float(emods['body'])
-    G_cover, G_body = float(gamma_fiber['cover']), float(gamma_fiber['body'])
-
     E_vals = E_cover * alpha_E + E_body * (1.0 - alpha_E)
-    G_vals = G_cover * alpha_G + G_body * (1.0 - alpha_G)
-
     E_fun = dfn.Function(V_E); E_fun.vector()[:] = E_vals
-    G_fun = dfn.Function(V_G); G_fun.vector()[:] = G_vals
+    prop['emod'][:] = E_fun.vector()[:]
 
-    prop['emod'][:]        = E_fun.vector()[:]
-    prop['gamma_fiber'][:] = G_fun.vector()[:]
+    if has_fiber:
+        alpha_G = logistic(sd_G)
+        G_cover, G_body = float(gamma_fiber['cover']), float(gamma_fiber['body'])
+        G_vals = G_cover * alpha_G + G_body * (1.0 - alpha_G)
+        G_fun = dfn.Function(V_G); G_fun.vector()[:] = G_vals
+        prop['gamma_fiber'][:] = G_fun.vector()[:]
+
+    # Overwrite scar cells with scar properties (same pattern as body DOFs)
+    dofs_scar = np.unique(cellregion_to_sdof.get('scar', np.empty(0, dtype=int)))
+    if dofs_scar.size:
+        prop['emod'][dofs_scar] = float(emods['scar'])
+        if has_fiber:
+            prop['gamma_fiber'][dofs_scar] = float(gamma_fiber['scar'])
 
     # --- remaining constants as in your original code ---
     prop['nu'][:] = POISSONS_RATIO
@@ -540,6 +556,7 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
         'Escar' : ESCAR,
         'gammaFcov': 5e4,
         'gammaFbod': 5e5,
+        'gammaFscar': 5e5,        
         'vcov': 1.0, 'mcov': 0.0,
         'psub': 600*10,
         'dt': DT, 'tf': TF,
@@ -556,6 +573,7 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
         'Escar' : ESCAR,
         'gammaFcov': 5e4,#40e4,
         'gammaFbod': 5e5,
+        'gammaFscar': 5e5,
         'vcov': 1, 'mcov': 0.0,
         'psub': 600*10,
         'dt': DT, 'tf': TF,
@@ -640,6 +658,7 @@ def run(
     # is not pickleable (`ExpParam` instances can't be pickled)
     param = ExpParam(param)
     out_path = f'{out_dir}/{param.to_str()}.h5'
+    # out_path = f'{out_dir}/output.h5'
     if not path.isfile(out_path):
         model = setup_model(param)
         state0, controls, prop = setup_state_control_props(param, model)
@@ -944,6 +963,7 @@ if __name__ == '__main__':
             print(f"Pool running with {clargs.num_proc:d} processors")
             in_fpaths = pool.map(_run, param_dicts, chunksize=1)
     else:
+        # Need to shorten file name, too long otherwise
         in_fpaths = [run(params, out_dir) for params in param_dicts]
 
     out_fpath = f'{out_dir}/postprocess.h5'
