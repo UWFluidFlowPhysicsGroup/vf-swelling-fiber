@@ -14,7 +14,7 @@ def proc_BC():
     gmsh.clear()
     gmsh.model.add('main')
 
-    gmsh.option.set_string('Geometry.OCCTargetUnit', 'MM')
+    gmsh.option.set_string('Geometry.OCCTargetUnit', 'CM')
     gmsh.merge(f'BC_Half.STEP')
 
     gmsh.model.add_physical_group(2, [1], name='body')
@@ -39,7 +39,7 @@ def proc_BCS():
     gmsh.clear()
     gmsh.model.add('main')
 
-    gmsh.option.set_string('Geometry.OCCTargetUnit', 'MM')
+    gmsh.option.set_string('Geometry.OCCTargetUnit', 'CM')
     gmsh.merge(f'BCS_0.16_0.08.STEP')
 
     gmsh.model.add_physical_group(2, [1], name='body')

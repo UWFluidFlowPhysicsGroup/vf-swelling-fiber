@@ -427,19 +427,6 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
     })
     if study_name == 'none':
         params = []
-    elif study_name == 'scarring_coarse':
-        params = [
-            DEFAULT_PARAM_3D.substitute({
-                'MeshName': MESH_BASE_NAME, 'clscale': 0.5,
-                'GA': 3,
-                'DZ': 0, 'NZ': 1,
-                'Ecov': ECOV,
-                'Ebod': EBOD,
-                'vcov': 1.0,
-                'psub': 600*10,
-                'dt': 5e-5, 'tf': 0.25
-            })
-        ]
     elif study_name == 'main_2D':
         def make_param(elayers, vcov, mcov):
             return DEFAULT_PARAM_2D.substitute({
@@ -494,6 +481,20 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
         params = [
             make_param(*args)
             for args in it.product(EMODS, vcovs, mcovs, damage_measures)
+        ]
+    elif study_name == 'main_2D_coarse':
+        def make_param(elayers, vcov, mcov):
+            return DEFAULT_PARAM_2D.substitute({
+                'Ecov': elayers['cover'], 'Ebod': elayers['body'],
+                'vcov': vcov, 'mcov': mcov,
+                'dt': 1e-4, 'tf': 0.5
+            })
+
+        vcovs = np.array([1.0, 1.1, 1.2, 1.3])
+        mcovs = np.array([0.0, -0.8])
+
+        params = [
+            make_param(*args) for args in it.product(EMODS, VCOVERS, MCOVERS)
         ]
     else:
         raise ValueError(f"Unknown `--study-name` {study_name}")
