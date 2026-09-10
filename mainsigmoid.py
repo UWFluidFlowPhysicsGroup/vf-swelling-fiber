@@ -554,7 +554,6 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
             DEFAULT_PARAM_2D.substitute({
                 'MeshName': MESH_BASE_NAME, 'clscale': CLSCALE,
                 'GA': 3,
-                'DZ': 1.5, 'NZ': 10,
                 'Ecov': ECOV, 'Ebod': EBOD,
                 'vcov': 1,
                 'psub': 600*10,
