@@ -38,9 +38,10 @@ POISSONS_RATIO = 0.4
 
 PSUB = 400 * 10
 
-VCOVERS = np.array([1.0, 1.15 , 1.3])
-MCOVERS = np.array([ -0.8])
-
+# VCOVERS = np.array([1.0, 1.15 , 1.3])
+# MCOVERS = np.array([ -0.8])
+VCOVERS = np.array([1.0])
+MCOVERS = np.array([0])
 
 ECOV = 2.5e4
 EBOD = 5e4
@@ -76,8 +77,8 @@ def setup_mesh_name(param: ExpParam) -> str:
     clscale = param['clscale']
     dz = param['DZ']
     nz = param['NZ']
-    return f'{base_name}--GA{ga:.2f}--DZ{dz:.2f}--NZ{nz:d}--clscale{clscale:.2e}'
-
+    # return f'{base_name}--GA{ga:.2f}--DZ{dz:.2f}--NZ{nz:d}--clscale{clscale:.2e}'
+    return f'BC_Half'
 def setup_model(param: ExpParam) -> Model:
     """
     Return the model
@@ -215,8 +216,10 @@ def setup_ini_state(param: ExpParam, model: Model) -> bv.BlockVector:
     state0[:] = 0.0
     model.solid.control[:] = 0.0
 
-    vcov = param['vcov']
-    nload = max(int(round((vcov-1)/0.025)), 1)
+    # vcov = param['vcov']
+    # nload = max(int(round((vcov-1)/0.025)), 1)
+    vcov = 1
+    nload = 0
 
     prop = setup_basic_props(param, model)
     model.set_prop(prop)
@@ -490,8 +493,8 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
                 'dt': 1e-4, 'tf': 0.5
             })
 
-        vcovs = np.array([1.0, 1.1, 1.2, 1.3])
-        mcovs = np.array([0.0, -0.8])
+        # vcovs = np.array([1.0, 1.1, 1.2, 1.3])
+        # mcovs = np.array([0.0, -0.8])
 
         params = [
             make_param(*args) for args in it.product(EMODS, VCOVERS, MCOVERS)

@@ -1,5 +1,5 @@
 """
-Run a sequence of vocal fold simulations without swelling
+Run a sequence of vocal fold simulations with swelling
 """
 
 from typing import List, Tuple, Mapping, Optional, Callable
@@ -7,16 +7,15 @@ from numpy.typing import NDArray
 
 from os import path
 import argparse as ap
-import multiprocessing as mp    # parallel execution
+import multiprocessing as mp
 import itertools as it
 import functools
 from typing import List, Mapping
 
 import numpy as np
-import dolfin as dfn 
+import dolfin as dfn
 import h5py
 
-# --- Project-specific imports ---
 from femvf import forward, static, statefile as sf, meshutils
 from femvf.models.transient import solid, fluid, base as trabase, coupled
 from femvf.models.dynamical import base as dynbase
@@ -31,19 +30,20 @@ from exputils import postprocutils, exputils
 dfn.set_log_level(50)
 
 ## Defaults for 'nominal' parameter values
-MESH_BASE_NAME = 'M5_BC'    # base mesh name
-CLSCALE = 0.25              # mesh scaling
-POISSONS_RATIO = 0.4        # Poisson’s ratio
-PSUB = 400 * 10             # subglottal pressure (Pa)
+MESH_BASE_NAME = 'BCS'
 
-# VCOVERS = np.array([1.0, 1.15 , 1.3])   # cover swelling multipliers
-# MCOVERS = np.array([-0.8])              # cover swelling modifiers
-VCOVERS = np.array([1.0])   # cover swelling multipliers
-MCOVERS = np.array([0])              # cover swelling modifiers
+CLSCALE = 0.25
 
-ECOV = 2.5e4   # elastic modulus (cover)
-EBOD = 5e4     # elastic modulus (body)
-ESCAR = 2.5e4   # elastic modulus (scar tissue)
+POISSONS_RATIO = 0.4
+
+PSUB = 400 * 10
+
+VCOVERS = np.array([1.0])
+MCOVERS = np.array([0])
+
+ECOV = 2.5e4
+EBOD = 5e4
+ESCAR = 2.5e4
 
 PARAM_SPEC = {
     'MeshName': str,
@@ -54,29 +54,20 @@ PARAM_SPEC = {
     'Ecov': float,
     'Ebod': float,
     'Escar': float,
-    # 'gammaFcov': float,
-    # 'gammaFbod': float,
     'vcov': float,
     'mcov': float,
     'psub': float,
     'dt': float,
     'tf': float,
     'ModifyEffect': str,
-    'SwellingDistribution': str
+    'SwellingDistribution': str,
 }
 PARAM_FORMAT_STRS = {'vcov': '.4e'}
-
-# import scipy.special  # Add this import at the top if not present
-
-# def sigmoid(x, x0=0.0, k=1.0):
-#     """Sigmoid function for Smooth logistic transition function.. """""
-#     return 1 / (1 + np.exp(-k * (x - x0)))
 
 ExpParam = exputils.make_parameters(PARAM_SPEC, PARAM_FORMAT_STRS)
 
 Model = coupled.BaseTransientFSIModel
-# Builds the unique filename string based on parameter values.
-## TODO make new mesh name for scar tissue parameters, brute forcing for now just to test
+
 def setup_mesh_name(param: ExpParam) -> str:
     """
     Return the name of the mesh
@@ -86,10 +77,10 @@ def setup_mesh_name(param: ExpParam) -> str:
     clscale = param['clscale']
     dz = param['DZ']
     nz = param['NZ']
-    return f'{base_name}--GA{ga:.2f}--DZ{dz:.2f}--NZ{nz:d}--clscale{clscale:.2e}'
-    # return f'BCS_0.04'
+    # return f'{base_name}--GA{ga:.2f}--DZ{dz:.2f}--NZ{nz:d}--clscale{clscale:.2e}'
     # return f'BC_Half'
-#Loads the transient FSI (fluid–structure interaction) model considering fiber direction from mesh.
+    return f'BCS_0.08'
+
 def setup_model(param: ExpParam) -> Model:
     """
     Return the model
@@ -105,14 +96,14 @@ def setup_model(param: ExpParam) -> Model:
 
     model = load_transient_fsi_model(
         mesh_path, None,
-        SolidType=solid.SwellingKelvinVoigtWEpitheliumNoShape,   # swelling, no fiber
+        SolidType=solid.SwellingKelvinVoigtWEpitheliumNoShape,
         FluidType=fluid.BernoulliAreaRatioSep,
         zs=zs
     )
     return model
 
 def setup_state_control_props(
-        params: ExpParam, model: Model 
+        params: ExpParam, model: Model
     ) -> Tuple[bv.BlockVector, bv.BlockVector, bv.BlockVector]:
     """
     Return a (state, controls, prop) tuple defining a transient run
@@ -120,10 +111,10 @@ def setup_state_control_props(
     ## Set 'basic' model properties
     # These properties don't include the glottal gap since you may/may not
     # want to modify the glottal gap based on the swelling level
-    prop = setup_basic_props(params, model)  # material/swelling props
+    prop = setup_basic_props(params, model)
     model.set_prop(prop)
 
-    ## Set the initial state 
+    ## Set the initial state
     # The initial state is based on the post-swelling static configuration
     state0 = setup_ini_state(params, model)
 
@@ -137,7 +128,7 @@ def setup_state_control_props(
         ymax = (model.solid.XREF + state0.sub['u'])[1::ndim].max()
     else:
         ymax = (model.solid.XREF)[1::ndim].max()
-    ygap = 0.03 # 0.3 mm half-gap -> 0.6 mm glottal gap  ## initial half-gap
+    ygap = 0.03 # 0.3 mm half-gap -> 0.6 mm glottal gap
     ycoll_offset = 1/10*ygap
 
     prop['ycontact'] = ymax + ygap - ycoll_offset
@@ -153,7 +144,6 @@ def setup_state_control_props(
 def setup_basic_props(param: ExpParam, model: Model) -> bv.BlockVector:
     """
     Set the properties vector
-    # FEM mesh + mapping from labeled regions -> DOFs
     """
     mesh = model.solid.residual.mesh()
     forms = model.solid.residual.form
@@ -167,7 +157,7 @@ def setup_basic_props(param: ExpParam, model: Model) -> bv.BlockVector:
 
     prop = model.prop.copy()
     # prop[:] = 0
-    ## Solid constant properties  # Assign baseline solid/fluid constants
+    ## Solid constant properties
     prop['rho'] = 1.0
     prop['eta'] = 5.0
     prop['kcontact'] = 1e15
@@ -198,19 +188,13 @@ def setup_basic_props(param: ExpParam, model: Model) -> bv.BlockVector:
         **modify_kwargs
     )
 
-    ## Set VF layer properties  # Apply elastic moduli and fiber moduli for body/cover 
+    ## Set VF layer properties
     emods = {
         'cover': param['Ecov'],
         'body': param['Ebod'],
         'scar': param['Escar']
     }
-
-    # gamma_fiber = {
-    #     'cover': param['gammaFcov'],
-    #     'body': param['gammaFbod']
-    # }
-    # prop = _set_layer_props(model, prop, emods, gamma_fiber, cellregion_to_sdof)
-    prop = _set_layer_props(model,prop, emods, cellregion_to_sdof)
+    prop = _set_layer_props(prop, emods, cellregion_to_sdof)
 
     return prop
 
@@ -283,7 +267,7 @@ def _set_swelling_props(
         )
     )
     dofs_bod = cellregion_to_sdof['body']
-    # dofs_scar = cellregion_to_sdof['scar']
+    dofs_scar = cellregion_to_sdof['scar']
     # dofs_sha = np.intersect1d(dofs_cov, dofs_bod)
 
     # prop['k_swelling'][0] = KSWELL_FACTOR * 10e3*10
@@ -293,7 +277,7 @@ def _set_swelling_props(
     if modify_geometry:
         prop['v_swelling'][dofs_cov] = param['vcov']
         prop['v_swelling'][dofs_bod] = 1.0
-        # prop['v_swelling'][dofs_scar] = 1.0
+        prop['v_swelling'][dofs_scar] = 1.0
 
     prop['rho'][:] = RHO_VF
 
@@ -346,44 +330,15 @@ def _set_swelling_props(
         # print(dfn.assemble(v_swell*dx_cover)/dfn.assemble(1*dx_cover))
         prop['v_swelling'][:] = v_swelling.vector()[:]
         prop['v_swelling'][dofs_bod] = 1.0
-        # prop['v_swelling'][dofs_scar] = 1.0
+        prop['v_swelling'][dofs_scar] = 1.0
 
     return prop
 
-import numpy as np
-import dolfin as dfn
-
-# optional: nearest neighbor accel (fallback to naive if missing)
-try:
-    from scipy.spatial import cKDTree as _KDTree
-except Exception:
-    _KDTree = None
-
-def _to_np_idx(x):
-    """Robustly convert a list/iterable of indices to a 1D np.int64 array."""
-    if x is None:
-        return np.empty(0, dtype=int)
-    try:
-        arr = np.asarray(x, dtype=int)
-        if arr.ndim == 0:
-            arr = arr.reshape(1)
-        return arr
-    except Exception:
-        return np.array(list(x), dtype=int)
-
-# def _set_layer_props(
-#         model,
-#         prop,
-#         emods: Mapping[str, float],
-#         gamma_fiber: Mapping[str, float],
-#         cellregion_to_sdof: Mapping[str, NDArray]
-#     ):
 def _set_layer_props(
-        model,
-        prop,
+        prop: bv.BlockVector,
         emods: Mapping[str, float],
         cellregion_to_sdof: Mapping[str, NDArray]
-    ):
+    ) -> bv.BlockVector:
     """
     Set properties for each layer of a model
 
@@ -406,12 +361,12 @@ def _set_layer_props(
             [cellregion_to_sdof[label] for label in ['cover']]
         )
     )
-    # dofs_bod = cellregion_to_sdof['body']
-    dofs_bod = np.unique(cellregion_to_sdof.get('body', np.empty(0, dtype=int)))
+    dofs_bod = cellregion_to_sdof['body']
+    dofs_scar = cellregion_to_sdof['scar']
     # dofs_scar = np.unique(cellregion_to_sdof.get('scar', np.empty(0, dtype=int)))
     prop['emod'][dofs_bod] = emods['body']
     prop['emod'][dofs_cov] = emods['cover']
-    # prop['emod'][dofs_scar] = float(emods['scar'])
+    prop['emod'][dofs_scar] = emods['scar']
 
     prop['nu'][:] = POISSONS_RATIO
 
@@ -421,6 +376,7 @@ def _set_layer_props(
     prop['th_membrane'][:] = 0.005
     prop['nu_membrane'][:] = POISSONS_RATIO
     return prop
+
 
 def solve_static_swollen_config(
         model: Model,
@@ -462,13 +418,9 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
     DEFAULT_PARAM_2D = ExpParam({
         'MeshName': MESH_BASE_NAME, 'clscale': CLSCALE,
         'GA': 3, 'DZ': 0.00, 'NZ': 1,
-        'Ecov': ECOV,
-        'Ebod': EBOD,
-        'Escar': ESCAR,
-        # 'gammaFcov': 5e4,
-        # 'gammaFbod': 5e5,        
+        'Ecov': ECOV, 'Ebod': EBOD, 'Escar': ESCAR,
         'vcov': 1.0, 'mcov': 0.0,
-        'psub': 400*10,
+        'psub': PSUB,
         'dt': DT, 'tf': TF,
         'ModifyEffect': '',
         'SwellingDistribution': 'uniform'
@@ -478,19 +430,84 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
         'MeshName': MESH_BASE_NAME, 'clscale': 0.25,
         'GA': 3,
         'DZ': 1.5, 'NZ': 15,
-        'Ecov': ECOV,
-        'Ebod': EBOD,
-        'Escar' : ESCAR,
-        # 'gammaFcov': 5e4,#40e4,
-        # 'gammaFbod': 5e5,
+        'Ecov': ECOV, 'Ebod': EBOD, 'Escar': ESCAR,
         'vcov': 1, 'mcov': 0.0,
-        'psub': 400*10,
+        'psub': PSUB,
         'dt': DT, 'tf': TF,
         'ModifyEffect': '',
         'SwellingDistribution': 'uniform'
     })
     if study_name == 'none':
         params = []
+    elif study_name == 'main_2D':
+        def make_param(elayers, vcov, mcov):
+            return DEFAULT_PARAM_2D.substitute({
+                'Ecov': elayers['cover'], 'Ebod': elayers['body'],
+                'vcov': vcov, 'mcov': mcov
+            })
+        vcovs = np.array([1.0, 1.1, 1.2, 1.3])
+        mcovs = np.array([0.0, -0.8])
+
+        params = [
+            make_param(*args) for args in it.product(EMODS, VCOVERS, MCOVERS)
+        ]
+    elif study_name == 'main_3D':
+        # This case is the setup for the unswollen 3D state
+        def make_param(elayers, vcov, mcov, damage):
+            return DEFAULT_PARAM_3D.substitute({
+                'Ecov': elayers['cover'], 'Ebod': elayers['body'],
+                'vcov': vcov, 'mcov': mcov,
+                'SwellingDistribution': 'uniform'
+            })
+
+        vcovs = np.array([1, 1.15, 1.3])
+        mcovs = np.array([ -0.8])
+        damage_measures = [
+            'uniform'
+            #'field.tavg_viscous_rate',
+            # 'field.tavg_strain_energy'
+        ]
+
+        params = [
+            make_param(*args)
+            for args in it.product(EMODS, vcovs, mcovs, damage_measures)
+        ]
+    elif study_name == 'main_3D_coarse':
+        # This case is the setup for the unswollen 3D state
+        def make_param(elayers, vcov, mcov, damage):
+            return DEFAULT_PARAM_3D.substitute({
+                'MeshName': MESH_BASE_NAME, 'clscale': 0.5,
+                'GA': 3, 'DZ': 1.5, 'NZ': 10,
+                'Ecov': elayers['cover'], 'Ebod': elayers['body'],
+                'vcov': vcov, 'mcov': mcov,
+                'SwellingDistribution': damage
+            })
+
+        vcovs = np.array([1.0, 1.1, 1.2, 1.3])
+        mcovs = np.array([0.0, -0.8])
+        damage_measures = [
+            'field.tavg_viscous_rate',
+            'field.tavg_strain_energy'
+        ]
+
+        params = [
+            make_param(*args)
+            for args in it.product(EMODS, vcovs, mcovs, damage_measures)
+        ]
+    elif study_name == 'main_2D_coarse':
+        def make_param(elayers, vcov, mcov):
+            return DEFAULT_PARAM_2D.substitute({
+                'Ecov': elayers['cover'], 'Ebod': elayers['body'],
+                'vcov': vcov, 'mcov': mcov,
+                'dt': 1e-4, 'tf': 0.5
+            })
+
+        # vcovs = np.array([1.0, 1.1, 1.2, 1.3])
+        # mcovs = np.array([0.0, -0.8])
+
+        params = [
+            make_param(*args) for args in it.product(EMODS, VCOVERS, MCOVERS)
+        ]
     elif study_name == 'scarring_coarse':
         def make_param(elayers, vcov, mcov):
             return DEFAULT_PARAM_2D.substitute({
@@ -510,60 +527,12 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
         params = [
             make_param(*args) for args in it.product(EMODS, VCOVERS, MCOVERS)
         ]
-    elif study_name == 'main_2D':
-        def make_param(elayers, vcov, mcov, gammaFcov, gammaFbod):
-            return DEFAULT_PARAM_2D.substitute({
-                'Ecov': elayers['cover'],
-                'Ebod': elayers['body'],
-                'Escar': elayers['scar'],
-                'vcov': vcov,
-                'mcov': mcov
-                # 'gammaFcov': gammaFcov,
-                # 'gammaFbod': gammaFbod
-         })
-
-        # # Define allowed gamma pairs
-        # GAMMA_PAIRS = [
-        #     (0.0, 0.0),     # no fiber
-        #     (5e4, 5e5)      # fiber
-        # ]
-
-        # params = [
-        #     make_param(elayers, vcov, mcov, gammaFcov, gammaFbod)
-        #     for elayers, vcov, mcov, (gammaFcov, gammaFbod) 
-        #     in it.product(EMODS, VCOVERS, MCOVERS, GAMMA_PAIRS)
-        # ]
-        params = [
-            make_param(*args) for args in it.product(EMODS, VCOVERS, MCOVERS)
-        ]
-    elif study_name == 'main_3D':
-        # This case is the setup for the unswollen 3D state
-        def make_param(elayers, vcov, mcov, damage):
-            return DEFAULT_PARAM_3D.substitute({
-                'Ecov': elayers['cover'], 'Ebod': elayers['body'],
-                'vcov': vcov, 'mcov': mcov,
-
-                'SwellingDistribution': 'uniform'
-            })
-        
-        vcovs = np.array([1, 1.15, 1.3])
-        mcovs = np.array([-0.8])
-        damage_measures = [
-            'field.tavg_viscous_rate',
-            # 'field.tavg_strain_energy'
-        ]
-
-        params = [
-            make_param(*args)
-            for args in it.product(EMODS, vcovs, mcovs, damage_measures)
-        ]
     else:
         raise ValueError(f"Unknown `--study-name` {study_name}")
-
     return params
 
 
-## Main functions for running/postprocessing simulations #Integrates transient model and writes results to HDF5.
+## Main functions for running/postprocessing simulations
 def run(
         param: dict,
         out_dir: str
@@ -576,7 +545,6 @@ def run(
     # is not pickleable (`ExpParam` instances can't be pickled)
     param = ExpParam(param)
     out_path = f'{out_dir}/{param.to_str()}.h5'
-    # out_path = f'{out_dir}/output.h5'
     if not path.isfile(out_path):
         model = setup_model(param)
         state0, controls, prop = setup_state_control_props(param, model)
@@ -778,42 +746,8 @@ def get_result_name_to_postprocess(
             for ii in range(f.size)
         ]
         return np.array(qs)
-    
-    def proc_glottal_flow_rate(f: sf.StateFile) -> NDArray:
-        """
-    Return the glottal flow rate vector (time series).
-
-    For each time step, average each fluid's q along its axial stations
-    using trapezoidal weights (0.5 at ends, 1.0 interior), then sum across
-    fluids. Works whether q is scalar or a 1D array.
-    """
-        q_t = []
-        num_fluid = len(f.model.fluids)
-
-        for i in range(f.size):
-            q_sum = 0.0
-            for n in range(num_fluid):
-                qn_like = f.get_state(i)[f"fluid{n}.q"]  # numpy-like
-                qn = np.asarray(qn_like)                 # ensure real np.ndarray
-
-                if qn.ndim == 0 or qn.size == 1:
-                    # scalar flow or single-station array
-                    q_avg = float(qn.reshape(-1)[0])
-                else:
-                    # trapezoidal average along axial direction
-                    w = np.ones(qn.size, dtype=float)
-                    w[0] = w[-1] = 0.5
-                    q_avg = float((qn * w).sum() / w.sum())
-
-                q_sum += q_avg
-
-            q_t.append(q_sum)
-
-        return np.asarray(q_t, dtype=float)
-
 
     result_name_to_postprocess = {
-        # 'time.q': proc_glottal_flow_rate,
         'time.q': proc_q,
         'time.gw': TimeSeries(proc_gw),
         'time.t': proc_time,
@@ -865,7 +799,8 @@ if __name__ == '__main__':
     )
 
     # Pack up the emod arguments to a dict format
-    _emods = np.array([[2.5, 5.0, 2.5]]) * 1e3 * 10
+    # _emods = np.array([[2.5, 5.0, 25]]) * 1e3 * 10
+    _emods = np.array([[ECOV, EBOD, ESCAR]])
     layer_labels = ['cover', 'body', 'scar']
     EMODS = [
         {label: value for label, value in zip(layer_labels, layer_values)}
@@ -882,7 +817,6 @@ if __name__ == '__main__':
             print(f"Pool running with {clargs.num_proc:d} processors")
             in_fpaths = pool.map(_run, param_dicts, chunksize=1)
     else:
-        # Need to shorten file name, too long otherwise
         in_fpaths = [run(params, out_dir) for params in param_dicts]
 
     out_fpath = f'{out_dir}/postprocess.h5'
