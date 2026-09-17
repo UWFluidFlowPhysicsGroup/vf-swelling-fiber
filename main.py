@@ -36,7 +36,7 @@ CLSCALE = 0.25
 
 POISSONS_RATIO = 0.4
 
-PSUB = 400 * 10
+PSUB = 550 * 10
 
 # VCOVERS = np.array([1.0, 1.15 , 1.3])
 # MCOVERS = np.array([ -0.8])
@@ -77,8 +77,7 @@ def setup_mesh_name(param: ExpParam) -> str:
     clscale = param['clscale']
     dz = param['DZ']
     nz = param['NZ']
-    # return f'{base_name}--GA{ga:.2f}--DZ{dz:.2f}--NZ{nz:d}--clscale{clscale:.2e}'
-    return f'BC_Half'
+    return f'{base_name}--GA{ga:.2f}--DZ{dz:.2f}--NZ{nz:d}--clscale{clscale:.2e}'
 def setup_model(param: ExpParam) -> Model:
     """
     Return the model
@@ -488,9 +487,8 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
     elif study_name == 'main_2D_coarse':
         def make_param(elayers, vcov, mcov):
             return DEFAULT_PARAM_2D.substitute({
-                'Ecov': elayers['cover'], 'Ebod': elayers['body'],
-                'vcov': vcov, 'mcov': mcov,
-                'dt': 1e-4, 'tf': 0.5
+                'dt': 1e-4,
+                'tf': 1
             })
 
         # vcovs = np.array([1.0, 1.1, 1.2, 1.3])

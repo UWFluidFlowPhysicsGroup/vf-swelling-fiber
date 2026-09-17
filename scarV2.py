@@ -36,18 +36,23 @@ CLSCALE = 0.25
 
 POISSONS_RATIO = 0.4
 
-PSUB = 400 * 10
+PSUB = 550 * 10
 
 VCOVERS = np.array([1.0])
 MCOVERS = np.array([0])
 
 ECOV = 2.5e4
 EBOD = 5e4
-ESCAR = 2.5e4
+ESCAR = 2.5e5
+ESCARS = np.array([5e3, 1e5, 2.5e4, 5e4, 1e5, 2.5e5, 5e5, 1e6])
+# ESCARS = np.array([2.5e4, 2.5e5])
+
+# SCAR_DIAS = np.array([0.04, 0.08, 0.12, 0.16])
+SCAR_RAD = 0.12
 
 PARAM_SPEC = {
     'MeshName': str,
-    'GA': float,
+    'SR': float,
     'DZ': float,
     'NZ': int,
     'clscale': float,
@@ -73,13 +78,13 @@ def setup_mesh_name(param: ExpParam) -> str:
     Return the name of the mesh
     """
     base_name = param['MeshName']
-    ga = param['GA']
+    sr = param['SR']
     clscale = param['clscale']
     dz = param['DZ']
     nz = param['NZ']
-    # return f'{base_name}--GA{ga:.2f}--DZ{dz:.2f}--NZ{nz:d}--clscale{clscale:.2e}'
+    return f'{base_name}--SR{sr:.2f}--DZ{dz:.2f}--NZ{nz:d}--clscale{clscale:.2e}'
     # return f'BC_Half'
-    return f'BCS_0.08'
+    # return f'BCS_0.08'
 
 def setup_model(param: ExpParam) -> Model:
     """
@@ -323,7 +328,7 @@ def _set_swelling_props(
         # Make the increase in volume (i.e. `v-1`) proportional to the damage
         # measure and scale the resulting swelling field so that the total
         # prescribed volume increase is `param['vcov']`
-        original_vol = dfn.assemble(1*dx_cover)
+        original_vol = dfn.assemble(dfn.Constant(1.0)*dx_cover)
         swollen_vol_incr = dfn.assemble(damage*dx_cover)
         v_factor = (param['vcov']*original_vol - original_vol)/swollen_vol_incr
         v_swelling.vector()[:] = (1+v_factor*damage.vector()[:])
@@ -400,7 +405,7 @@ def solve_static_swollen_config(
     v_final = prop['v_swelling'][:].copy()
     v_0 = v_final.copy()
     v_0[:] = 1
-    dv = (v_final-v_0)/nload
+    dv = (v_final-v_0)/nload if nload > 0 else np.zeros_like(v_final)
 
     props_n = prop.copy()
     props_n['v_swelling'][:] = v_0
@@ -417,7 +422,7 @@ def solve_static_swollen_config(
 def make_exp_params(study_name: str) -> List[ExpParam]:
     DEFAULT_PARAM_2D = ExpParam({
         'MeshName': MESH_BASE_NAME, 'clscale': CLSCALE,
-        'GA': 3, 'DZ': 0.00, 'NZ': 1,
+        'SR': SCAR_RAD, 'DZ': 0.00, 'NZ': 1,
         'Ecov': ECOV, 'Ebod': EBOD, 'Escar': ESCAR,
         'vcov': 1.0, 'mcov': 0.0,
         'psub': PSUB,
@@ -428,7 +433,7 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
 
     DEFAULT_PARAM_3D = ExpParam({
         'MeshName': MESH_BASE_NAME, 'clscale': 0.25,
-        'GA': 3,
+        'SR': SCAR_RAD,
         'DZ': 1.5, 'NZ': 15,
         'Ecov': ECOV, 'Ebod': EBOD, 'Escar': ESCAR,
         'vcov': 1, 'mcov': 0.0,
@@ -477,7 +482,7 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
         def make_param(elayers, vcov, mcov, damage):
             return DEFAULT_PARAM_3D.substitute({
                 'MeshName': MESH_BASE_NAME, 'clscale': 0.5,
-                'GA': 3, 'DZ': 1.5, 'NZ': 10,
+                'SR': SCAR_RAD, 'DZ': 1.5, 'NZ': 10,
                 'Ecov': elayers['cover'], 'Ebod': elayers['body'],
                 'vcov': vcov, 'mcov': mcov,
                 'SwellingDistribution': damage
@@ -509,23 +514,16 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
             make_param(*args) for args in it.product(EMODS, VCOVERS, MCOVERS)
         ]
     elif study_name == 'scarring_coarse':
-        def make_param(elayers, vcov, mcov):
+        def make_param(elayers, vcov, mcov, escar):
             return DEFAULT_PARAM_2D.substitute({
-                'MeshName': MESH_BASE_NAME, 'clscale': 0.25,
-                'GA': 3,
-                'DZ': 0, 'NZ': 1,
-                'Ecov': ECOV,
-                'Ebod': EBOD,
-                'Escar': ESCAR,
-                'vcov': vcov,
-                'mcov': mcov,
-                'psub': PSUB,
-                'dt': 1e-4, 'tf': 0.5
+                'clscale': 0.25,
+                'Escar': escar,
+                'dt': 1e-4, 'tf': 1
             })
         
 
         params = [
-            make_param(*args) for args in it.product(EMODS, VCOVERS, MCOVERS)
+            make_param(*args) for args in it.product(EMODS, VCOVERS, MCOVERS, ESCARS)
         ]
     else:
         raise ValueError(f"Unknown `--study-name` {study_name}")
