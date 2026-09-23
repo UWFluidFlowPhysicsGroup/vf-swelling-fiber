@@ -36,7 +36,7 @@ CLSCALE = 0.25
 
 POISSONS_RATIO = 0.4
 
-PSUB = 550 * 10
+PSUB = 300 * 10
 
 # VCOVERS = np.array([1.0, 1.15 , 1.3])
 # MCOVERS = np.array([ -0.8])

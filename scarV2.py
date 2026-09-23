@@ -30,29 +30,31 @@ from exputils import postprocutils, exputils
 dfn.set_log_level(50)
 
 ## Defaults for 'nominal' parameter values
-MESH_BASE_NAME = 'BCS'
+MESH_BASE_NAME = 'BCS_M'
+# For meshes with scar tissues in different locations
+MESH_NAMES = ['BCS_S', 'BCS_M', 'BCS_I']
 
 CLSCALE = 0.25
 
 POISSONS_RATIO = 0.4
 
-PSUB = 550 * 10
+PSUB = 300 * 10
 
 VCOVERS = np.array([1.0])
 MCOVERS = np.array([0])
 
 ECOV = 2.5e4
 EBOD = 5e4
-ESCAR = 2.5e5
-ESCARS = np.array([5e3, 1e5, 2.5e4, 5e4, 1e5, 2.5e5, 5e5, 1e6])
+ESCAR = 1e5
+ESCARS = np.array([2.5e4, 5e4, 1e5, 2.5e5, 5e5, 1e6])
 # ESCARS = np.array([2.5e4, 2.5e5])
 
-# SCAR_DIAS = np.array([0.04, 0.08, 0.12, 0.16])
-SCAR_RAD = 0.12
+SCAR_DIAS = np.array([0.04, 0.08, 0.12, 0.16])
+SCAR_DIA = 0.08
 
 PARAM_SPEC = {
     'MeshName': str,
-    'SR': float,
+    'SD': float,
     'DZ': float,
     'NZ': int,
     'clscale': float,
@@ -78,13 +80,11 @@ def setup_mesh_name(param: ExpParam) -> str:
     Return the name of the mesh
     """
     base_name = param['MeshName']
-    sr = param['SR']
+    sd = param['SD']
     clscale = param['clscale']
     dz = param['DZ']
     nz = param['NZ']
-    return f'{base_name}--SR{sr:.2f}--DZ{dz:.2f}--NZ{nz:d}--clscale{clscale:.2e}'
-    # return f'BC_Half'
-    # return f'BCS_0.08'
+    return f'{base_name}--SD{sd:.2f}--DZ{dz:.2f}--NZ{nz:d}--clscale{clscale:.2e}'
 
 def setup_model(param: ExpParam) -> Model:
     """
@@ -133,7 +133,7 @@ def setup_state_control_props(
         ymax = (model.solid.XREF + state0.sub['u'])[1::ndim].max()
     else:
         ymax = (model.solid.XREF)[1::ndim].max()
-    ygap = 0.03 # 0.3 mm half-gap -> 0.6 mm glottal gap
+    ygap = 0.02 # 0.2 mm half-gap -> 0.4 mm glottal gap
     ycoll_offset = 1/10*ygap
 
     prop['ycontact'] = ymax + ygap - ycoll_offset
@@ -422,7 +422,7 @@ def solve_static_swollen_config(
 def make_exp_params(study_name: str) -> List[ExpParam]:
     DEFAULT_PARAM_2D = ExpParam({
         'MeshName': MESH_BASE_NAME, 'clscale': CLSCALE,
-        'SR': SCAR_RAD, 'DZ': 0.00, 'NZ': 1,
+        'SD': SCAR_DIA, 'DZ': 0.00, 'NZ': 1,
         'Ecov': ECOV, 'Ebod': EBOD, 'Escar': ESCAR,
         'vcov': 1.0, 'mcov': 0.0,
         'psub': PSUB,
@@ -432,8 +432,8 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
     })
 
     DEFAULT_PARAM_3D = ExpParam({
-        'MeshName': MESH_BASE_NAME, 'clscale': 0.25,
-        'SR': SCAR_RAD,
+        'MeshName': MESH_BASE_NAME, 'clscale': CLSCALE,
+        'SD': SCAR_DIA,
         'DZ': 1.5, 'NZ': 15,
         'Ecov': ECOV, 'Ebod': EBOD, 'Escar': ESCAR,
         'vcov': 1, 'mcov': 0.0,
@@ -482,7 +482,7 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
         def make_param(elayers, vcov, mcov, damage):
             return DEFAULT_PARAM_3D.substitute({
                 'MeshName': MESH_BASE_NAME, 'clscale': 0.5,
-                'SR': SCAR_RAD, 'DZ': 1.5, 'NZ': 10,
+                'SD': SCAR_DIA, 'DZ': 1.5, 'NZ': 10,
                 'Ecov': elayers['cover'], 'Ebod': elayers['body'],
                 'vcov': vcov, 'mcov': mcov,
                 'SwellingDistribution': damage
@@ -513,17 +513,31 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
         params = [
             make_param(*args) for args in it.product(EMODS, VCOVERS, MCOVERS)
         ]
-    elif study_name == 'scarring_coarse':
-        def make_param(elayers, vcov, mcov, escar):
+    # Scar stiffness sweep for a single selected mesh
+    elif study_name == 'stiffness_coarse':
+        def make_param(elayers, escar):
             return DEFAULT_PARAM_2D.substitute({
-                'clscale': 0.25,
                 'Escar': escar,
                 'dt': 1e-4, 'tf': 1
             })
         
 
         params = [
-            make_param(*args) for args in it.product(EMODS, VCOVERS, MCOVERS, ESCARS)
+            make_param(*args) for args in it.product(EMODS, ESCARS)
+        ]
+
+    # Scar radius sweep for a fixed stiffness
+    elif study_name == 'size_coarse':
+        def make_param(mesh_name, scar_dia):
+            return DEFAULT_PARAM_2D.substitute({
+                'MeshName': mesh_name,
+                'SD': scar_dia,
+                'dt': 1e-4, 'tf': 1
+            })
+        
+
+        params = [
+            make_param(*args) for args in it.product(MESH_NAMES, SCAR_DIAS)
         ]
     else:
         raise ValueError(f"Unknown `--study-name` {study_name}")
