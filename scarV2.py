@@ -55,8 +55,8 @@ MODSCAR = 10
 # MODSCARS = np.array([2.5e4, 5e4, 1e5, 2.5e5, 5e5, 1e6])
 MODSCARS = np.array([1, 2, 4, 10, 20, 40])
 
-SCAR_DIAS = np.array([0.04, 0.08, 0.12, 0.16])
-# SCAR_DIAS = np.array([0.08, 0.12, 0.16])
+# SCAR_DIAS = np.array([0, 0.04, 0.08, 0.12, 0.16])
+SCAR_DIAS = np.array([0])
 SCAR_DIA = 0.08
 
 PARAM_SPEC = {
@@ -168,17 +168,11 @@ def setup_basic_props(param: ExpParam, model: Model) -> bv.BlockVector:
 
     prop = model.prop.copy()
     # prop[:] = 0
+    
     ## Solid constant properties
     prop['rho'] = 1.0
 
     prop['eta'][:] = param['Eta']
-
-    # this is for swelling, but can maybe use for reference?
-    # prop['v_swelling'][:] = 1.0
-    # if modify_geometry:
-    #     prop['v_swelling'][dofs_cov] = param['vcov']
-    #     prop['v_swelling'][dofs_bod] = 1.0
-    #     prop['v_swelling'][dofs_scar] = 1.0
 
     prop['kcontact'] = 1e15
     # prop['ncontact'] = [0, 1]
@@ -209,11 +203,18 @@ def setup_basic_props(param: ExpParam, model: Model) -> bv.BlockVector:
     # )
 
     ## Set VF layer properties
-    emods = {
-        'cover': param['Ecov'],
-        'body': param['Ebod'],
-        'scar': param['Ecov']*param['ModScar']
-    }
+    if param['SD'] == 0:
+        emods = {
+            'cover': param['Ecov'],
+            'body': param['Ebod']
+        }
+    else:
+        emods = {
+            'cover': param['Ecov'],
+            'body': param['Ebod'],
+            'scar': param['Ecov']*param['ModScar']
+        }
+    
     prop = _set_layer_props(prop, emods, cellregion_to_sdof)
 
     return prop
@@ -282,70 +283,71 @@ def _set_swelling_props(
         )
     )
     dofs_bod = cellregion_to_sdof['body']
-    dofs_scar = cellregion_to_sdof['scar']
+    if param['SD'] != 0:
+        dofs_scar = cellregion_to_sdof['scar']
     # dofs_sha = np.intersect1d(dofs_cov, dofs_bod)
 
     # prop['k_swelling'][0] = KSWELL_FACTOR * 10e3*10
-    prop['m_swelling'][dofs_cov] = param['mcov']
+    # prop['m_swelling'][dofs_cov] = param['mcov']
 
-    prop['v_swelling'][:] = 1.0
-    if modify_geometry:
-        prop['v_swelling'][dofs_cov] = param['vcov']
-        prop['v_swelling'][dofs_bod] = 1.0
-        prop['v_swelling'][dofs_scar] = 1.0
+    # prop['v_swelling'][:] = 1.0
+    # if modify_geometry:
+    #     prop['v_swelling'][dofs_cov] = param['vcov']
+    #     prop['v_swelling'][dofs_bod] = 1.0
+    #     prop['v_swelling'][dofs_scar] = 1.0
 
     prop['rho'][:] = RHO_VF
 
-    if modify_density:
-        _v = np.array(prop['v_swelling'][:])
-        prop['rho'][:] = RHO_VF + (_v-1)*RHO_SWELL
+    # if modify_density:
+    #     _v = np.array(prop['v_swelling'][:])
+    #     prop['rho'][:] = RHO_VF + (_v-1)*RHO_SWELL
 
-    ## TODO : Fix this ad-hoc thing to do the swelling based on damage
-    if (
-        param['SwellingDistribution'] != 'uniform'
-        and param['vcov'] != 1.0
-        ):
-        param_unswollen = param.substitute({
-            'vcov': 1.0
-        })
-        with h5py.File(f'out/postprocess.h5', mode='a') as f:
-            # damage_key = 'field.tavg_viscous_rate'
-            damage_key = param['SwellingDistribution']
-            group_name = param_unswollen.to_str()
-            dataset_name = f'{group_name}/{damage_key}'
-            # Check if the post-processed damage measure exists;
-            # if not, post-process the damage measure.
-            if dataset_name not in f:
-                state_fpath = path.join(out_dir, f'{group_name}.h5')
-                # If the simulation hasn't been run, then run it first
-                if not path.isfile(state_fpath):
-                    run(param_unswollen, out_dir)
+    # ## TODO : Fix this ad-hoc thing to do the swelling based on damage
+    # if (
+    #     param['SwellingDistribution'] != 'uniform'
+    #     and param['vcov'] != 1.0
+    #     ):
+    #     param_unswollen = param.substitute({
+    #         'vcov': 1.0
+    #     })
+    #     with h5py.File(f'out/postprocess.h5', mode='a') as f:
+    #         # damage_key = 'field.tavg_viscous_rate'
+    #         damage_key = param['SwellingDistribution']
+    #         group_name = param_unswollen.to_str()
+    #         dataset_name = f'{group_name}/{damage_key}'
+    #         # Check if the post-processed damage measure exists;
+    #         # if not, post-process the damage measure.
+    #         if dataset_name not in f:
+    #             state_fpath = path.join(out_dir, f'{group_name}.h5')
+    #             # If the simulation hasn't been run, then run it first
+    #             if not path.isfile(state_fpath):
+    #                 run(param_unswollen, out_dir)
 
-                with sf.StateFile(model, state_fpath, mode='r') as fstate:
-                    postprocess = get_result_name_to_postprocess(model)[damage_key]
-                    group = f.require_group(group_name)
-                    group.create_dataset(damage_key, data=postprocess(fstate))
-            _damage = f[dataset_name][:]
+    #             with sf.StateFile(model, state_fpath, mode='r') as fstate:
+    #                 postprocess = get_result_name_to_postprocess(model)[damage_key]
+    #                 group = f.require_group(group_name)
+    #                 group.create_dataset(damage_key, data=postprocess(fstate))
+    #         _damage = f[dataset_name][:]
 
-        residual = model.solid.residual
-        damage = residual.form['coeff.prop.v_swelling'].copy()
-        damage.vector()[:] = _damage
-        v_swelling = damage.copy()
+    #     residual = model.solid.residual
+    #     damage = residual.form['coeff.prop.v_swelling'].copy()
+    #     damage.vector()[:] = _damage
+    #     v_swelling = damage.copy()
 
-        cell_label_to_id = residual.mesh_function_label_to_value('cell')
-        dx = residual.measure('dx')
-        dx_cover = dx(int(cell_label_to_id['cover']))
-        # Make the increase in volume (i.e. `v-1`) proportional to the damage
-        # measure and scale the resulting swelling field so that the total
-        # prescribed volume increase is `param['vcov']`
-        original_vol = dfn.assemble(dfn.Constant(1.0)*dx_cover)
-        swollen_vol_incr = dfn.assemble(damage*dx_cover)
-        v_factor = (param['vcov']*original_vol - original_vol)/swollen_vol_incr
-        v_swelling.vector()[:] = (1+v_factor*damage.vector()[:])
-        # print(dfn.assemble(v_swell*dx_cover)/dfn.assemble(1*dx_cover))
-        prop['v_swelling'][:] = v_swelling.vector()[:]
-        prop['v_swelling'][dofs_bod] = 1.0
-        prop['v_swelling'][dofs_scar] = 1.0
+    #     cell_label_to_id = residual.mesh_function_label_to_value('cell')
+    #     dx = residual.measure('dx')
+    #     dx_cover = dx(int(cell_label_to_id['cover']))
+    #     # Make the increase in volume (i.e. `v-1`) proportional to the damage
+    #     # measure and scale the resulting swelling field so that the total
+    #     # prescribed volume increase is `param['vcov']`
+    #     original_vol = dfn.assemble(dfn.Constant(1.0)*dx_cover)
+    #     swollen_vol_incr = dfn.assemble(damage*dx_cover)
+    #     v_factor = (param['vcov']*original_vol - original_vol)/swollen_vol_incr
+    #     v_swelling.vector()[:] = (1+v_factor*damage.vector()[:])
+    #     # print(dfn.assemble(v_swell*dx_cover)/dfn.assemble(1*dx_cover))
+    #     prop['v_swelling'][:] = v_swelling.vector()[:]
+    #     prop['v_swelling'][dofs_bod] = 1.0
+    #     prop['v_swelling'][dofs_scar] = 1.0
 
     return prop
 
@@ -377,13 +379,14 @@ def _set_layer_props(
         )
     )
     dofs_bod = cellregion_to_sdof['body']
-    dofs_scar = cellregion_to_sdof['scar']
-    # dofs_scar = np.unique(cellregion_to_sdof.get('scar', np.empty(0, dtype=int)))
+
+
     prop['emod'][dofs_bod] = emods['body']
     prop['emod'][dofs_cov] = emods['cover']
-    prop['emod'][dofs_scar] = emods['scar']
-
-    prop['eta'][dofs_scar] = MODSCAR*ETA
+    if param['SD'] != 0:
+        dofs_scar = cellregion_to_sdof['scar']
+        prop['emod'][dofs_scar] = emods['scar']
+        prop['eta'][dofs_scar] = MODSCAR*ETA
 
     prop['nu'][:] = POISSONS_RATIO
 
@@ -824,8 +827,12 @@ if __name__ == '__main__':
 
     # Pack up the emod arguments to a dict format
     # _emods = np.array([[2.5, 5.0, 25]]) * 1e3 * 10
-    _emods = np.array([[ECOV, EBOD, ECOV*MODSCAR]])
-    layer_labels = ['cover', 'body', 'scar']
+    if param['SD'] == 0:
+        _emods = np.array([[ECOV, EBOD]])
+        layer_labels = ['cover', 'body']
+    else:
+        _emods = np.array([[ECOV, EBOD, ECOV*MODSCAR]])
+        layer_labels = ['cover', 'body', 'scar']
     EMODS = [
         {label: value for label, value in zip(layer_labels, layer_values)}
         for layer_values in _emods
