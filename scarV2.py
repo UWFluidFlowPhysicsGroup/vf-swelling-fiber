@@ -33,7 +33,6 @@ dfn.set_log_level(50)
 MESH_BASE_NAME = 'BCS_M'
 # For meshes with scar tissues in different locations
 MESH_NAMES = ['BCS_S', 'BCS_M', 'BCS_I']
-# MESH_NAMES = ['BCS_S', 'BCS_M']
 
 CLSCALE = 0.25
 
@@ -52,11 +51,9 @@ ECOV = 2.5e4
 EBOD = 5e4
 # Scar tissue viscoelastic modifier
 MODSCAR = 10
-# MODSCARS = np.array([2.5e4, 5e4, 1e5, 2.5e5, 5e5, 1e6])
 MODSCARS = np.array([1, 2, 4, 10, 20, 40])
 
-# SCAR_DIAS = np.array([0, 0.04, 0.08, 0.12, 0.16])
-SCAR_DIAS = np.array([0])
+SCAR_DIAS = np.array([0, 0.04, 0.08, 0.12, 0.16])
 SCAR_DIA = 0.08
 
 PARAM_SPEC = {
@@ -383,7 +380,7 @@ def _set_layer_props(
 
     prop['emod'][dofs_bod] = emods['body']
     prop['emod'][dofs_cov] = emods['cover']
-    if param['SD'] != 0:
+    if len(emods) != 2:
         dofs_scar = cellregion_to_sdof['scar']
         prop['emod'][dofs_scar] = emods['scar']
         prop['eta'][dofs_scar] = MODSCAR*ETA
@@ -519,7 +516,7 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
             return DEFAULT_PARAM_2D.substitute({
                 'Ecov': elayers['cover'], 'Ebod': elayers['body'],
                 'vcov': vcov, 'mcov': mcov,
-                'dt': 1e-4, 'tf': 0.5
+                'dt': 1e-4, 'tf': 1
             })
 
         # vcovs = np.array([1.0, 1.1, 1.2, 1.3])
@@ -825,19 +822,6 @@ if __name__ == '__main__':
         postprocess, overwrite_results=clargs.overwrite_results
     )
 
-    # Pack up the emod arguments to a dict format
-    # _emods = np.array([[2.5, 5.0, 25]]) * 1e3 * 10
-    if param['SD'] == 0:
-        _emods = np.array([[ECOV, EBOD]])
-        layer_labels = ['cover', 'body']
-    else:
-        _emods = np.array([[ECOV, EBOD, ECOV*MODSCAR]])
-        layer_labels = ['cover', 'body', 'scar']
-    EMODS = [
-        {label: value for label, value in zip(layer_labels, layer_values)}
-        for layer_values in _emods
-    ]
-
     ## Run and postprocess simulations
     out_dir = clargs.output_dir
     params = make_exp_params(clargs.study_name)
@@ -855,10 +839,22 @@ if __name__ == '__main__':
 
     if clargs.export_xdmf:
         for param in params:
+            # Pack up the emod arguments to a dict format
+            if param['SD'] == 0:
+                _emods = np.array([[ECOV, EBOD]])
+                layer_labels = ['cover', 'body']
+            else:
+                _emods = np.array([[ECOV, EBOD, ECOV*MODSCAR]])
+                layer_labels = ['cover', 'body', 'scar']
+        
+            EMODS = [
+                {label: value for label, value in zip(layer_labels, layer_values)}
+                for layer_values in _emods
+            ]
+            
             in_fpath = f'{out_dir}/{param.to_str()}.h5'
             xdmf_path = (
-                f"vis--vcov{param['vcov']:.2e}--mcov{param['mcov']:.2e}"
-                f"--distribution{param['SwellingDistribution']:s}.xdmf"
+                f"vis--ModScar{param['ModScar']:.2e}--SD{param['SD']:.2e}.xdmf"
             )
             # xdmf_path = 'temp.xdmf'
 
