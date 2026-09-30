@@ -33,6 +33,7 @@ dfn.set_log_level(50)
 MESH_BASE_NAME = 'BCS_M'
 # For meshes with scar tissues in different locations
 MESH_NAMES = ['BCS_S', 'BCS_M', 'BCS_I']
+# MESH_NAMES = ['BCS_S', 'BCS_M']
 
 CLSCALE = 0.25
 
@@ -50,6 +51,7 @@ ESCARS = np.array([2.5e4, 5e4, 1e5, 2.5e5, 5e5, 1e6])
 # ESCARS = np.array([2.5e4, 2.5e5])
 
 SCAR_DIAS = np.array([0.04, 0.08, 0.12, 0.16])
+# SCAR_DIAS = np.array([0.08, 0.12, 0.16])
 SCAR_DIA = 0.08
 
 PARAM_SPEC = {
@@ -164,7 +166,17 @@ def setup_basic_props(param: ExpParam, model: Model) -> bv.BlockVector:
     # prop[:] = 0
     ## Solid constant properties
     prop['rho'] = 1.0
-    prop['eta'] = 5.0
+
+    # Viscosity, TODO modify viscosity of scar tissue region only
+    prop['eta'][:] = 5.0
+
+    # this is for swelling, but can maybe use for reference?
+    # prop['v_swelling'][:] = 1.0
+    # if modify_geometry:
+    #     prop['v_swelling'][dofs_cov] = param['vcov']
+    #     prop['v_swelling'][dofs_bod] = 1.0
+    #     prop['v_swelling'][dofs_scar] = 1.0
+
     prop['kcontact'] = 1e15
     # prop['ncontact'] = [0, 1]
 
@@ -372,6 +384,7 @@ def _set_layer_props(
     prop['emod'][dofs_bod] = emods['body']
     prop['emod'][dofs_cov] = emods['cover']
     prop['emod'][dofs_scar] = emods['scar']
+    prop['eta'][dofs_scar] = 20.0
 
     prop['nu'][:] = POISSONS_RATIO
 
