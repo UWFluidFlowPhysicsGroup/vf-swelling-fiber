@@ -44,11 +44,16 @@ PSUB = 300 * 10
 VCOVERS = np.array([1.0])
 MCOVERS = np.array([0])
 
+# Viscosity
+ETA = 5
+
+# Elasticity
 ECOV = 2.5e4
 EBOD = 5e4
-ESCAR = 1e5
-ESCARS = np.array([2.5e4, 5e4, 1e5, 2.5e5, 5e5, 1e6])
-# ESCARS = np.array([2.5e4, 2.5e5])
+# Scar tissue viscoelastic modifier
+MODSCAR = 10
+# MODSCARS = np.array([2.5e4, 5e4, 1e5, 2.5e5, 5e5, 1e6])
+MODSCARS = np.array([1, 2, 4, 10, 20, 40])
 
 SCAR_DIAS = np.array([0.04, 0.08, 0.12, 0.16])
 # SCAR_DIAS = np.array([0.08, 0.12, 0.16])
@@ -62,9 +67,8 @@ PARAM_SPEC = {
     'clscale': float,
     'Ecov': float,
     'Ebod': float,
-    'Escar': float,
-    'vcov': float,
-    'mcov': float,
+    'ModScar': float,
+    'Eta': float,
     'psub': float,
     'dt': float,
     'tf': float,
@@ -167,8 +171,7 @@ def setup_basic_props(param: ExpParam, model: Model) -> bv.BlockVector:
     ## Solid constant properties
     prop['rho'] = 1.0
 
-    # Viscosity, TODO modify viscosity of scar tissue region only
-    prop['eta'][:] = 5.0
+    prop['eta'][:] = param['Eta']
 
     # this is for swelling, but can maybe use for reference?
     # prop['v_swelling'][:] = 1.0
@@ -200,16 +203,16 @@ def setup_basic_props(param: ExpParam, model: Model) -> bv.BlockVector:
     else:
         raise ValueError(f"Unkown 'ModifyEffect' parameter {param['ModifyEffect']}")
 
-    prop = _set_swelling_props(
-        param, model, prop, cellregion_to_sdof,
-        **modify_kwargs
-    )
+    # prop = _set_swelling_props(
+    #     param, model, prop, cellregion_to_sdof,
+    #     **modify_kwargs
+    # )
 
     ## Set VF layer properties
     emods = {
         'cover': param['Ecov'],
         'body': param['Ebod'],
-        'scar': param['Escar']
+        'scar': param['Ecov']*param['ModScar']
     }
     prop = _set_layer_props(prop, emods, cellregion_to_sdof)
 
@@ -236,16 +239,11 @@ def setup_ini_state(param: ExpParam, model: Model) -> bv.BlockVector:
     state0[:] = 0.0
     model.solid.control[:] = 0.0
 
-    # vcov = param['vcov']
-    # nload = max(int(round((vcov-1)/0.025)), 1)
-    vcov = 1
-    nload = 0
-
     prop = setup_basic_props(param, model)
     model.set_prop(prop)
 
     static_state, _ = solve_static_swollen_config(
-        model.solid, model.solid.control, model.solid.prop, nload
+        model.solid, model.solid.control, model.solid.prop
     )
 
     state0[['u', 'v', 'a']] = static_state
@@ -384,7 +382,8 @@ def _set_layer_props(
     prop['emod'][dofs_bod] = emods['body']
     prop['emod'][dofs_cov] = emods['cover']
     prop['emod'][dofs_scar] = emods['scar']
-    prop['eta'][dofs_scar] = 20.0
+
+    prop['eta'][dofs_scar] = MODSCAR*ETA
 
     prop['nu'][:] = POISSONS_RATIO
 
@@ -436,8 +435,8 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
     DEFAULT_PARAM_2D = ExpParam({
         'MeshName': MESH_BASE_NAME, 'clscale': CLSCALE,
         'SD': SCAR_DIA, 'DZ': 0.00, 'NZ': 1,
-        'Ecov': ECOV, 'Ebod': EBOD, 'Escar': ESCAR,
-        'vcov': 1.0, 'mcov': 0.0,
+        'Ecov': ECOV, 'Ebod': EBOD, 'ModScar': MODSCAR,
+        'Eta': ETA,
         'psub': PSUB,
         'dt': DT, 'tf': TF,
         'ModifyEffect': '',
@@ -448,8 +447,8 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
         'MeshName': MESH_BASE_NAME, 'clscale': CLSCALE,
         'SD': SCAR_DIA,
         'DZ': 1.5, 'NZ': 15,
-        'Ecov': ECOV, 'Ebod': EBOD, 'Escar': ESCAR,
-        'vcov': 1, 'mcov': 0.0,
+        'Ecov': ECOV, 'Ebod': EBOD, 'ModScar': MODSCAR,
+        'Eta': ETA,
         'psub': PSUB,
         'dt': DT, 'tf': TF,
         'ModifyEffect': '',
@@ -825,7 +824,7 @@ if __name__ == '__main__':
 
     # Pack up the emod arguments to a dict format
     # _emods = np.array([[2.5, 5.0, 25]]) * 1e3 * 10
-    _emods = np.array([[ECOV, EBOD, ESCAR]])
+    _emods = np.array([[ECOV, EBOD, ECOV*MODSCAR]])
     layer_labels = ['cover', 'body', 'scar']
     EMODS = [
         {label: value for label, value in zip(layer_labels, layer_values)}

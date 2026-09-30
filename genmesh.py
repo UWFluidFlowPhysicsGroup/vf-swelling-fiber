@@ -33,7 +33,10 @@ def proc_BC():
     gmsh.option.set_number('Mesh.MeshSizeFactor', SIZE_FACTOR)
 
     gmsh.model.mesh.generate(2)
-    gmsh.write(OUTPUT_DIR + f'BC_Half.msh')
+    # gmsh.write(OUTPUT_DIR + f'BC_Half.msh')
+    gmsh.write(OUTPUT_DIR + f'BCS_S--SD0.00--DZ0.00--NZ1--clscale2.50e-01.msh')
+    gmsh.write(OUTPUT_DIR + f'BCS_M--SD0.00--DZ0.00--NZ1--clscale2.50e-01.msh')
+    gmsh.write(OUTPUT_DIR + f'BCS_I--SD0.00--DZ0.00--NZ1--clscale2.50e-01.msh')
 
 # Generate medial scar with radius of 0.04 cm
 def proc_BCS_M_04():
@@ -362,15 +365,15 @@ def proc_BCS_I_16():
 
 if __name__ == '__main__':
     proc_BC()
-    proc_BCS_M_04()
-    proc_BCS_M_08()
-    proc_BCS_M_12()
-    proc_BCS_M_16()
-    proc_BCS_S_04()
-    proc_BCS_S_08()
-    proc_BCS_S_12()
-    proc_BCS_S_16()    
-    proc_BCS_I_04()
-    proc_BCS_I_08()
-    proc_BCS_I_12()
-    proc_BCS_I_16()
+    # proc_BCS_M_04()
+    # proc_BCS_M_08()
+    # proc_BCS_M_12()
+    # proc_BCS_M_16()
+    # proc_BCS_S_04()
+    # proc_BCS_S_08()
+    # proc_BCS_S_12()
+    # proc_BCS_S_16()    
+    # proc_BCS_I_04()
+    # proc_BCS_I_08()
+    # proc_BCS_I_12()
+    # proc_BCS_I_16()
