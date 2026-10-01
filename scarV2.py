@@ -40,9 +40,6 @@ POISSONS_RATIO = 0.4
 
 PSUB = 300 * 10
 
-VCOVERS = np.array([1.0])
-MCOVERS = np.array([0])
-
 # Viscosity
 ETA = 5
 
@@ -72,7 +69,7 @@ PARAM_SPEC = {
     'ModifyEffect': str,
     'SwellingDistribution': str,
 }
-PARAM_FORMAT_STRS = {'vcov': '.4e'}
+PARAM_FORMAT_STRS = {}
 
 ExpParam = exputils.make_parameters(PARAM_SPEC, PARAM_FORMAT_STRS)
 
@@ -457,51 +454,36 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
     if study_name == 'none':
         params = []
     elif study_name == 'main_2D':
-        def make_param(elayers, vcov, mcov):
+        def make_param(elayers):
             return DEFAULT_PARAM_2D.substitute({
                 'Ecov': elayers['cover'], 'Ebod': elayers['body'],
-                'vcov': vcov, 'mcov': mcov
             })
-        vcovs = np.array([1.0, 1.1, 1.2, 1.3])
-        mcovs = np.array([0.0, -0.8])
 
         params = [
-            make_param(*args) for args in it.product(EMODS, VCOVERS, MCOVERS)
+            make_param(*args) for args in it.product(EMODS)
         ]
     elif study_name == 'main_3D':
         # This case is the setup for the unswollen 3D state
-        def make_param(elayers, vcov, mcov, damage):
+        def make_param(elayers):
             return DEFAULT_PARAM_3D.substitute({
                 'Ecov': elayers['cover'], 'Ebod': elayers['body'],
-                'vcov': vcov, 'mcov': mcov,
                 'SwellingDistribution': 'uniform'
             })
 
-        vcovs = np.array([1, 1.15, 1.3])
-        mcovs = np.array([ -0.8])
-        damage_measures = [
-            'uniform'
-            #'field.tavg_viscous_rate',
-            # 'field.tavg_strain_energy'
-        ]
-
         params = [
             make_param(*args)
-            for args in it.product(EMODS, vcovs, mcovs, damage_measures)
+            for args in it.product(EMODS)
         ]
     elif study_name == 'main_3D_coarse':
         # This case is the setup for the unswollen 3D state
-        def make_param(elayers, vcov, mcov, damage):
+        def make_param(elayers, damage):
             return DEFAULT_PARAM_3D.substitute({
                 'MeshName': MESH_BASE_NAME, 'clscale': 0.5,
                 'SD': SCAR_DIA, 'DZ': 1.5, 'NZ': 10,
                 'Ecov': elayers['cover'], 'Ebod': elayers['body'],
-                'vcov': vcov, 'mcov': mcov,
                 'SwellingDistribution': damage
             })
 
-        vcovs = np.array([1.0, 1.1, 1.2, 1.3])
-        mcovs = np.array([0.0, -0.8])
         damage_measures = [
             'field.tavg_viscous_rate',
             'field.tavg_strain_energy'
@@ -509,21 +491,17 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
 
         params = [
             make_param(*args)
-            for args in it.product(EMODS, vcovs, mcovs, damage_measures)
+            for args in it.product(EMODS, damage_measures)
         ]
     elif study_name == 'main_2D_coarse':
-        def make_param(elayers, vcov, mcov):
+        def make_param(elayers):
             return DEFAULT_PARAM_2D.substitute({
                 'Ecov': elayers['cover'], 'Ebod': elayers['body'],
-                'vcov': vcov, 'mcov': mcov,
                 'dt': 1e-4, 'tf': 1
             })
 
-        # vcovs = np.array([1.0, 1.1, 1.2, 1.3])
-        # mcovs = np.array([0.0, -0.8])
-
         params = [
-            make_param(*args) for args in it.product(EMODS, VCOVERS, MCOVERS)
+            make_param(*args) for args in it.product(EMODS)
         ]
     # Scar stiffness sweep for a single selected mesh
     elif study_name == 'stiffness_coarse':
