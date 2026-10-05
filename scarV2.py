@@ -530,7 +530,7 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
             make_param(*args) for args in it.product(MESH_NAMES, SCAR_DIAS)
         ]
 
-    elif study_name == 'refinement':
+    elif study_name == 'spatial_sens':
         def make_param(clscale, scar_dia):
             return DEFAULT_PARAM_2D.substitute({
                 'MeshName': 'BCS_S',
@@ -542,6 +542,21 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
         SCAR_DIAS = [0, 0.08]
         params = [
             make_param(*args) for args in it.product(CLSCALES, SCAR_DIAS)
+        ]
+    elif study_name == 'sens_study':
+        def make_param(clscale, del_t, scar_dia):
+            return DEFAULT_PARAM_2D.substitute({
+                'MeshName': 'BCS_S',
+                'clscale': clscale, 
+                'SD': scar_dia,
+                'dt': del_t,
+                'tf': 1
+            })
+        CLSCALES = [0.5, 0.25, 0.125, 0.05]
+        DEL_T = [1e-4, 5e-5, 2.5e-5, 1.25e-5, 5e-6]
+        SCAR_DIAS = [0, 0.08]
+        params = [
+            make_param(*args) for args in it.product(CLSCALES, DEL_T, SCAR_DIAS)
         ]
     else:
         raise ValueError(f"Unknown `--study-name` {study_name}")
