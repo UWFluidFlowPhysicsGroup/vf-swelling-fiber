@@ -552,8 +552,8 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
                 'dt': del_t,
                 'tf': 1
             })
-        CLSCALES = [0.5, 0.25, 0.125, 0.05]
-        DEL_T = [1e-4, 5e-5, 2.5e-5, 1.25e-5, 5e-6]
+        CLSCALES = [0.5, 0.25, 0.125]
+        DEL_T = [2.5e-5, 1.25e-5, 5e-6]
         SCAR_DIAS = [0, 0.08]
         params = [
             make_param(*args) for args in it.product(CLSCALES, DEL_T, SCAR_DIAS)

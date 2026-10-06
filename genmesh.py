@@ -364,7 +364,7 @@ def proc_BCS_I_16():
     gmsh.write(OUTPUT_DIR + f'BCS_I--SD0.16--DZ0.00--NZ1--clscale1.25e-01.msh')
 
 def sensitivity_study():
-    SIZE_FACTORS = [0.5, 0.25, 0.125, 0.05]
+    SIZE_FACTORS = [0.5, 0.25, 0.125]
 
     for size_factor in SIZE_FACTORS:
         """
@@ -417,16 +417,16 @@ def sensitivity_study():
 
 if __name__ == '__main__':
     sensitivity_study()
-    # proc_BC()
-    # proc_BCS_M_04()
-    # proc_BCS_M_08()
-    # proc_BCS_M_12()
-    # proc_BCS_M_16()
-    # proc_BCS_S_04()
-    # proc_BCS_S_08()
-    # proc_BCS_S_12()
-    # proc_BCS_S_16()    
-    # proc_BCS_I_04()
-    # proc_BCS_I_08()
-    # proc_BCS_I_12()
-    # proc_BCS_I_16()
+    proc_BC()
+    proc_BCS_M_04()
+    proc_BCS_M_08()
+    proc_BCS_M_12()
+    proc_BCS_M_16()
+    proc_BCS_S_04()
+    proc_BCS_S_08()
+    proc_BCS_S_12()
+    proc_BCS_S_16()    
+    proc_BCS_I_04()
+    proc_BCS_I_08()
+    proc_BCS_I_12()
+    proc_BCS_I_16()
