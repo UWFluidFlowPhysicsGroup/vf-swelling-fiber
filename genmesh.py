@@ -364,7 +364,7 @@ def proc_BCS_I_16():
     gmsh.write(OUTPUT_DIR + f'BCS_I--SD0.16--DZ0.00--NZ1--clscale1.25e-01.msh')
 
 def sensitivity_study():
-    SIZE_FACTORS = [0.5, 0.25, 0.125]
+    SIZE_FACTORS = [1, 0.5, 0.25, 0.125]
 
     for size_factor in SIZE_FACTORS:
         """
