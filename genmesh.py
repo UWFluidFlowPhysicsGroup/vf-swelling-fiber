@@ -364,7 +364,7 @@ def proc_BCS_I_16():
     gmsh.write(OUTPUT_DIR + f'BCS_I--SD0.16--DZ0.00--NZ1--clscale1.25e-01.msh')
 
 def sensitivity_study():
-    SIZE_FACTORS = [1, 0.5, 0.25, 0.125, 0.0625]
+    SIZE_FACTORS = [1, 0.5, 0.25, 0.125, 0.08]
 
     for size_factor in SIZE_FACTORS:
         """
@@ -388,8 +388,28 @@ def sensitivity_study():
         gmsh.option.set_number('Mesh.MshFileVersion', MSH_VER)
         gmsh.option.set_number('Mesh.MeshSizeFactor', size_factor)
 
+        distance = gmsh.model.mesh.field.add("Distance")
+        gmsh.model.mesh.field.setNumbers(distance, "CurvesList", [9, 10, 11])
+        gmsh.model.mesh.field.setNumbers(distance, "PointsList", [8])
+
+        threshold = gmsh.model.mesh.field.add("Threshold")
+        gmsh.model.mesh.field.setNumber(threshold, "IField", distance)
+        gmsh.model.mesh.field.setNumber(threshold, "LcMin", 0.1 * size_factor)
+        gmsh.model.mesh.field.setNumber(threshold, "LcMax", size_factor)
+        gmsh.model.mesh.field.setNumber(threshold, "DistMin", 0)
+        gmsh.model.mesh.field.setNumber(threshold, "DistMax", 0.1)
+        
+        constant_min = gmsh.model.mesh.field.add("Constant")
+        gmsh.model.mesh.field.setNumbers(constant_min, "SurfacesList", [2])
+        gmsh.model.mesh.field.setNumber(constant_min, "VIn", 0.5)
+        gmsh.model.mesh.field.setNumber(constant_min, "VOut", 0.01)
+        
+        maximum = gmsh.model.mesh.field.add("Max")
+        gmsh.model.mesh.field.setNumbers(maximum, "FieldsList", [threshold, constant_min])
+
+        gmsh.model.mesh.field.setAsBackgroundMesh(maximum)
+
         gmsh.model.mesh.generate(2)
-        # gmsh.write(OUTPUT_DIR + f'BC_Half.msh')
         gmsh.write(OUTPUT_DIR + f'BCS_S--SD0.00--DZ0.00--NZ1--clscale{size_factor:.2e}.msh')
 
 
@@ -412,21 +432,42 @@ def sensitivity_study():
         gmsh.option.set_number('Mesh.MshFileVersion', MSH_VER)
         gmsh.option.set_number('Mesh.MeshSizeFactor', size_factor)
 
+        distance = gmsh.model.mesh.field.add("Distance")
+        gmsh.model.mesh.field.setNumbers(distance, "CurvesList", [4, 3, 15, 14, 1])
+        gmsh.model.mesh.field.setNumbers(distance, "PointsList", [13])
+
+        threshold = gmsh.model.mesh.field.add("Threshold")
+        gmsh.model.mesh.field.setNumber(threshold, "IField", distance)
+        gmsh.model.mesh.field.setNumber(threshold, "LcMin", 0.1 * size_factor)
+        gmsh.model.mesh.field.setNumber(threshold, "LcMax", size_factor)
+        gmsh.model.mesh.field.setNumber(threshold, "DistMin", 0)
+        gmsh.model.mesh.field.setNumber(threshold, "DistMax", 0.1)
+        
+        constant_min = gmsh.model.mesh.field.add("Constant")
+        gmsh.model.mesh.field.setNumbers(constant_min, "SurfacesList", [3])
+        gmsh.model.mesh.field.setNumber(constant_min, "VIn", 0.5)
+        gmsh.model.mesh.field.setNumber(constant_min, "VOut", 0.01)
+        
+        maximum = gmsh.model.mesh.field.add("Max")
+        gmsh.model.mesh.field.setNumbers(maximum, "FieldsList", [threshold, constant_min])
+
+        gmsh.model.mesh.field.setAsBackgroundMesh(maximum)
+
         gmsh.model.mesh.generate(2)
         gmsh.write(OUTPUT_DIR + f'BCS_S--SD0.08--DZ0.00--NZ1--clscale{size_factor:.2e}.msh')
 
 if __name__ == '__main__':
     sensitivity_study()
-    proc_BC()
-    proc_BCS_M_04()
-    proc_BCS_M_08()
-    proc_BCS_M_12()
-    proc_BCS_M_16()
-    proc_BCS_S_04()
-    proc_BCS_S_08()
-    proc_BCS_S_12()
-    proc_BCS_S_16()    
-    proc_BCS_I_04()
-    proc_BCS_I_08()
-    proc_BCS_I_12()
-    proc_BCS_I_16()
+    # proc_BC()
+    # proc_BCS_M_04()
+    # proc_BCS_M_08()
+    # proc_BCS_M_12()
+    # proc_BCS_M_16()
+    # proc_BCS_S_04()
+    # proc_BCS_S_08()
+    # proc_BCS_S_12()
+    # proc_BCS_S_16()    
+    # proc_BCS_I_04()
+    # proc_BCS_I_08()
+    # proc_BCS_I_12()
+    # proc_BCS_I_16()
