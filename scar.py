@@ -32,7 +32,8 @@ dfn.set_log_level(50)
 ## Defaults for 'nominal' parameter values
 MESH_BASE_NAME = 'BCS_M'
 # For meshes with scar tissues in different locations
-MESH_NAMES = ['BCS_S', 'BCS_M', 'BCS_I']
+# MESH_NAMES = ['BCS_S', 'BCS_M', 'BCS_I']
+MESH_NAMES = ['BCS_S', 'BCS_M']
 
 CLSCALE = 0.25
 
@@ -50,7 +51,8 @@ EBOD = 5e4
 MODSCAR = 10
 MODSCARS = np.array([1, 2, 4, 10, 20, 40])
 
-SCAR_DIAS = np.array([0, 0.04, 0.08, 0.12, 0.16])
+# SCAR_DIAS = np.array([0, 0.04, 0.08, 0.12, 0.16])
+SCAR_DIAS = np.array([0, 0.04, 0.08])
 SCAR_DIA = 0.08
 
 PARAM_SPEC = {
@@ -522,10 +524,11 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
             return DEFAULT_PARAM_2D.substitute({
                 'MeshName': mesh_name,
                 'SD': scar_dia,
+                'clscale': 0.125,
                 'dt': 1e-4, 'tf': 1
             })
-        
-
+        SCAR_DIAS = np.array([0, 0.04, 0.08, 0.12, 0.16])
+        MESH_NAMES = ['BCS_S', 'BCS_M', 'BCS_I']
         params = [
             make_param(*args) for args in it.product(MESH_NAMES, SCAR_DIAS)
         ]
