@@ -32,8 +32,7 @@ dfn.set_log_level(50)
 ## Defaults for 'nominal' parameter values
 MESH_BASE_NAME = 'BCS_M'
 # For meshes with scar tissues in different locations
-# MESH_NAMES = ['BCS_S', 'BCS_M', 'BCS_I']
-MESH_NAMES = ['BCS_S', 'BCS_M']
+MESH_NAMES = ['BCS_S', 'BCS_M', 'BCS_I']
 
 CLSCALE = 0.25
 
@@ -519,13 +518,13 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
         ]
 
     # Scar radius sweep for a fixed stiffness
-    elif study_name == 'size_coarse':
+    elif study_name == 'size':
         def make_param(mesh_name, scar_dia):
             return DEFAULT_PARAM_2D.substitute({
                 'MeshName': mesh_name,
                 'SD': scar_dia,
-                'clscale': 0.125,
-                'dt': 1e-4, 'tf': 1
+                'clscale': 0.25,
+                'dt': 2.5e-5, 'tf': 1
             })
         SCAR_DIAS = np.array([0, 0.04, 0.08, 0.12, 0.16])
         MESH_NAMES = ['BCS_S', 'BCS_M', 'BCS_I']

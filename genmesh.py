@@ -4,7 +4,7 @@ import gmsh
 gmsh.initialize(sys.argv)
 
 MSH_VER = 2.0
-SIZE_FACTOR = 0.125
+SIZE_FACTOR = 0.25
 OUTPUT_DIR = 'mesh/'
 
 # meshes need to be hardcoded since different scar geometries lead to different numbering of physical groups
@@ -32,11 +32,32 @@ def proc_BC():
     gmsh.option.set_number('Mesh.MshFileVersion', MSH_VER)
     gmsh.option.set_number('Mesh.MeshSizeFactor', SIZE_FACTOR)
 
+    distance = gmsh.model.mesh.field.add("Distance")
+    gmsh.model.mesh.field.setNumbers(distance, "CurvesList", [9, 10, 11])
+    gmsh.model.mesh.field.setNumbers(distance, "PointsList", [8])
+
+    threshold = gmsh.model.mesh.field.add("Threshold")
+    gmsh.model.mesh.field.setNumber(threshold, "IField", distance)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMin", 0.1 * SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMax", SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMin", 0)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMax", 0.1)
+    
+    constant_min = gmsh.model.mesh.field.add("Constant")
+    gmsh.model.mesh.field.setNumbers(constant_min, "SurfacesList", [2])
+    gmsh.model.mesh.field.setNumber(constant_min, "VIn", 0.5)
+    gmsh.model.mesh.field.setNumber(constant_min, "VOut", 0.01)
+    
+    maximum = gmsh.model.mesh.field.add("Max")
+    gmsh.model.mesh.field.setNumbers(maximum, "FieldsList", [threshold, constant_min])
+
+    gmsh.model.mesh.field.setAsBackgroundMesh(maximum)
+
     gmsh.model.mesh.generate(2)
     # gmsh.write(OUTPUT_DIR + f'BC_Half.msh')
-    gmsh.write(OUTPUT_DIR + f'BCS_S--SD0.00--DZ0.00--NZ1--clscale1.25e-01.msh')
-    gmsh.write(OUTPUT_DIR + f'BCS_M--SD0.00--DZ0.00--NZ1--clscale1.25e-01.msh')
-    gmsh.write(OUTPUT_DIR + f'BCS_I--SD0.00--DZ0.00--NZ1--clscale1.25e-01.msh')
+    gmsh.write(OUTPUT_DIR + f'BCS_S--SD0.00--DZ0.00--NZ1--clscale{SIZE_FACTOR:.2e}.msh')
+    gmsh.write(OUTPUT_DIR + f'BCS_M--SD0.00--DZ0.00--NZ1--clscale{SIZE_FACTOR:.2e}.msh')
+    gmsh.write(OUTPUT_DIR + f'BCS_I--SD0.00--DZ0.00--NZ1--clscale{SIZE_FACTOR:.2e}.msh')
 
 # Generate medial scar with radius of 0.04 cm
 def proc_BCS_M_04():
@@ -62,8 +83,29 @@ def proc_BCS_M_04():
     gmsh.option.set_number('Mesh.MshFileVersion', MSH_VER)
     gmsh.option.set_number('Mesh.MeshSizeFactor', SIZE_FACTOR)
 
+    distance = gmsh.model.mesh.field.add("Distance")
+    gmsh.model.mesh.field.setNumbers(distance, "CurvesList", [4, 3, 15, 1, 14])
+    gmsh.model.mesh.field.setNumbers(distance, "PointsList", [13])
+
+    threshold = gmsh.model.mesh.field.add("Threshold")
+    gmsh.model.mesh.field.setNumber(threshold, "IField", distance)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMin", 0.1 * SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMax", SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMin", 0)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMax", 0.1)
+    
+    constant_min = gmsh.model.mesh.field.add("Constant")
+    gmsh.model.mesh.field.setNumbers(constant_min, "SurfacesList", [3])
+    gmsh.model.mesh.field.setNumber(constant_min, "VIn", 0.5)
+    gmsh.model.mesh.field.setNumber(constant_min, "VOut", 0.01)
+    
+    maximum = gmsh.model.mesh.field.add("Max")
+    gmsh.model.mesh.field.setNumbers(maximum, "FieldsList", [threshold, constant_min])
+
+    gmsh.model.mesh.field.setAsBackgroundMesh(maximum)
+
     gmsh.model.mesh.generate(2)
-    gmsh.write(OUTPUT_DIR + f'BCS_M--SD0.04--DZ0.00--NZ1--clscale1.25e-01.msh')
+    gmsh.write(OUTPUT_DIR + f'BCS_M--SD0.04--DZ0.00--NZ1--clscale{SIZE_FACTOR:.2e}.msh')
 
 # Generate medial scar with radius of 0.08 cm
 def proc_BCS_M_08():
@@ -89,8 +131,29 @@ def proc_BCS_M_08():
     gmsh.option.set_number('Mesh.MshFileVersion', MSH_VER)
     gmsh.option.set_number('Mesh.MeshSizeFactor', SIZE_FACTOR)
 
+    distance = gmsh.model.mesh.field.add("Distance")
+    gmsh.model.mesh.field.setNumbers(distance, "CurvesList", [4, 3, 15, 1, 14])
+    gmsh.model.mesh.field.setNumbers(distance, "PointsList", [13])
+
+    threshold = gmsh.model.mesh.field.add("Threshold")
+    gmsh.model.mesh.field.setNumber(threshold, "IField", distance)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMin", 0.1 * SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMax", SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMin", 0)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMax", 0.1)
+    
+    constant_min = gmsh.model.mesh.field.add("Constant")
+    gmsh.model.mesh.field.setNumbers(constant_min, "SurfacesList", [3])
+    gmsh.model.mesh.field.setNumber(constant_min, "VIn", 0.5)
+    gmsh.model.mesh.field.setNumber(constant_min, "VOut", 0.01)
+    
+    maximum = gmsh.model.mesh.field.add("Max")
+    gmsh.model.mesh.field.setNumbers(maximum, "FieldsList", [threshold, constant_min])
+
+    gmsh.model.mesh.field.setAsBackgroundMesh(maximum)
+
     gmsh.model.mesh.generate(2)
-    gmsh.write(OUTPUT_DIR + f'BCS_M--SD0.08--DZ0.00--NZ1--clscale1.25e-01.msh')
+    gmsh.write(OUTPUT_DIR + f'BCS_M--SD0.08--DZ0.00--NZ1--clscale{SIZE_FACTOR:.2e}.msh')
 
 # Generate medial scar with radius of 0.12 cm
 def proc_BCS_M_12():
@@ -117,8 +180,29 @@ def proc_BCS_M_12():
     gmsh.option.set_number('Mesh.MshFileVersion', MSH_VER)
     gmsh.option.set_number('Mesh.MeshSizeFactor', SIZE_FACTOR)
 
+    distance = gmsh.model.mesh.field.add("Distance")
+    gmsh.model.mesh.field.setNumbers(distance, "CurvesList", [11, 10, 20, 14, 18])
+    gmsh.model.mesh.field.setNumbers(distance, "PointsList", [15])
+
+    threshold = gmsh.model.mesh.field.add("Threshold")
+    gmsh.model.mesh.field.setNumber(threshold, "IField", distance)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMin", 0.1 * SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMax", SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMin", 0)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMax", 0.1)
+    
+    constant_min = gmsh.model.mesh.field.add("Constant")
+    gmsh.model.mesh.field.setNumbers(constant_min, "SurfacesList", [1])
+    gmsh.model.mesh.field.setNumber(constant_min, "VIn", 0.5)
+    gmsh.model.mesh.field.setNumber(constant_min, "VOut", 0.01)
+    
+    maximum = gmsh.model.mesh.field.add("Max")
+    gmsh.model.mesh.field.setNumbers(maximum, "FieldsList", [threshold, constant_min])
+
+    gmsh.model.mesh.field.setAsBackgroundMesh(maximum)
+
     gmsh.model.mesh.generate(2)
-    gmsh.write(OUTPUT_DIR + f'BCS_M--SD0.12--DZ0.00--NZ1--clscale1.25e-01.msh')
+    gmsh.write(OUTPUT_DIR + f'BCS_M--SD0.12--DZ0.00--NZ1--clscale{SIZE_FACTOR:.2e}.msh')
 
 # Generate medial scar with radius of 0.16 cm
 def proc_BCS_M_16():
@@ -144,8 +228,29 @@ def proc_BCS_M_16():
     gmsh.option.set_number('Mesh.MshFileVersion', MSH_VER)
     gmsh.option.set_number('Mesh.MeshSizeFactor', SIZE_FACTOR)
 
+    distance = gmsh.model.mesh.field.add("Distance")
+    gmsh.model.mesh.field.setNumbers(distance, "CurvesList", [16, 15, 19, 9, 13])
+    gmsh.model.mesh.field.setNumbers(distance, "PointsList", [11])
+
+    threshold = gmsh.model.mesh.field.add("Threshold")
+    gmsh.model.mesh.field.setNumber(threshold, "IField", distance)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMin", 0.1 * SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMax", SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMin", 0)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMax", 0.1)
+    
+    constant_min = gmsh.model.mesh.field.add("Constant")
+    gmsh.model.mesh.field.setNumbers(constant_min, "SurfacesList", [1])
+    gmsh.model.mesh.field.setNumber(constant_min, "VIn", 0.5)
+    gmsh.model.mesh.field.setNumber(constant_min, "VOut", 0.01)
+    
+    maximum = gmsh.model.mesh.field.add("Max")
+    gmsh.model.mesh.field.setNumbers(maximum, "FieldsList", [threshold, constant_min])
+
+    gmsh.model.mesh.field.setAsBackgroundMesh(maximum)
+
     gmsh.model.mesh.generate(2)
-    gmsh.write(OUTPUT_DIR + f'BCS_M--SD0.16--DZ0.00--NZ1--clscale1.25e-01.msh')
+    gmsh.write(OUTPUT_DIR + f'BCS_M--SD0.16--DZ0.00--NZ1--clscale{SIZE_FACTOR:.2e}.msh')
 
 # Generate superior scar with radius of 0.04 cm
 def proc_BCS_S_04():
@@ -171,8 +276,29 @@ def proc_BCS_S_04():
     gmsh.option.set_number('Mesh.MshFileVersion', MSH_VER)
     gmsh.option.set_number('Mesh.MeshSizeFactor', SIZE_FACTOR)
 
+    distance = gmsh.model.mesh.field.add("Distance")
+    gmsh.model.mesh.field.setNumbers(distance, "CurvesList", [4, 3, 15, 14, 1])
+    gmsh.model.mesh.field.setNumbers(distance, "PointsList", [13])
+
+    threshold = gmsh.model.mesh.field.add("Threshold")
+    gmsh.model.mesh.field.setNumber(threshold, "IField", distance)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMin", 0.1 * SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMax", SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMin", 0)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMax", 0.1)
+    
+    constant_min = gmsh.model.mesh.field.add("Constant")
+    gmsh.model.mesh.field.setNumbers(constant_min, "SurfacesList", [3])
+    gmsh.model.mesh.field.setNumber(constant_min, "VIn", 0.5)
+    gmsh.model.mesh.field.setNumber(constant_min, "VOut", 0.01)
+    
+    maximum = gmsh.model.mesh.field.add("Max")
+    gmsh.model.mesh.field.setNumbers(maximum, "FieldsList", [threshold, constant_min])
+
+    gmsh.model.mesh.field.setAsBackgroundMesh(maximum)
+
     gmsh.model.mesh.generate(2)
-    gmsh.write(OUTPUT_DIR + f'BCS_S--SD0.04--DZ0.00--NZ1--clscale1.25e-01.msh')
+    gmsh.write(OUTPUT_DIR + f'BCS_S--SD0.04--DZ0.00--NZ1--clscale{SIZE_FACTOR:.2e}.msh')
 
 # Generate superior scar with radius of 0.08 cm
 def proc_BCS_S_08():
@@ -198,8 +324,29 @@ def proc_BCS_S_08():
     gmsh.option.set_number('Mesh.MshFileVersion', MSH_VER)
     gmsh.option.set_number('Mesh.MeshSizeFactor', SIZE_FACTOR)
 
+    distance = gmsh.model.mesh.field.add("Distance")
+    gmsh.model.mesh.field.setNumbers(distance, "CurvesList", [4, 3, 15, 14, 1])
+    gmsh.model.mesh.field.setNumbers(distance, "PointsList", [13])
+
+    threshold = gmsh.model.mesh.field.add("Threshold")
+    gmsh.model.mesh.field.setNumber(threshold, "IField", distance)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMin", 0.1 * SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMax", SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMin", 0)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMax", 0.1)
+    
+    constant_min = gmsh.model.mesh.field.add("Constant")
+    gmsh.model.mesh.field.setNumbers(constant_min, "SurfacesList", [3])
+    gmsh.model.mesh.field.setNumber(constant_min, "VIn", 0.5)
+    gmsh.model.mesh.field.setNumber(constant_min, "VOut", 0.01)
+    
+    maximum = gmsh.model.mesh.field.add("Max")
+    gmsh.model.mesh.field.setNumbers(maximum, "FieldsList", [threshold, constant_min])
+
+    gmsh.model.mesh.field.setAsBackgroundMesh(maximum)
+
     gmsh.model.mesh.generate(2)
-    gmsh.write(OUTPUT_DIR + f'BCS_S--SD0.08--DZ0.00--NZ1--clscale1.25e-01.msh')
+    gmsh.write(OUTPUT_DIR + f'BCS_S--SD0.08--DZ0.00--NZ1--clscale{SIZE_FACTOR:.2e}.msh')
 
 # Generate superior scar with radius of 0.12 cm
 def proc_BCS_S_12():
@@ -225,8 +372,29 @@ def proc_BCS_S_12():
     gmsh.option.set_number('Mesh.MshFileVersion', MSH_VER)
     gmsh.option.set_number('Mesh.MeshSizeFactor', SIZE_FACTOR)
 
+    distance = gmsh.model.mesh.field.add("Distance")
+    gmsh.model.mesh.field.setNumbers(distance, "CurvesList", [14, 13, 18, 17, 8])
+    gmsh.model.mesh.field.setNumbers(distance, "PointsList", [10])
+
+    threshold = gmsh.model.mesh.field.add("Threshold")
+    gmsh.model.mesh.field.setNumber(threshold, "IField", distance)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMin", 0.1 * SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMax", SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMin", 0)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMax", 0.1)
+    
+    constant_min = gmsh.model.mesh.field.add("Constant")
+    gmsh.model.mesh.field.setNumbers(constant_min, "SurfacesList", [1])
+    gmsh.model.mesh.field.setNumber(constant_min, "VIn", 0.5)
+    gmsh.model.mesh.field.setNumber(constant_min, "VOut", 0.01)
+    
+    maximum = gmsh.model.mesh.field.add("Max")
+    gmsh.model.mesh.field.setNumbers(maximum, "FieldsList", [threshold, constant_min])
+
+    gmsh.model.mesh.field.setAsBackgroundMesh(maximum)
+
     gmsh.model.mesh.generate(2)
-    gmsh.write(OUTPUT_DIR + f'BCS_S--SD0.12--DZ0.00--NZ1--clscale1.25e-01.msh')
+    gmsh.write(OUTPUT_DIR + f'BCS_S--SD0.12--DZ0.00--NZ1--clscale{SIZE_FACTOR:.2e}.msh')
 
 # Generate superior scar with radius of 0.16 cm
 def proc_BCS_S_16():
@@ -252,8 +420,29 @@ def proc_BCS_S_16():
     gmsh.option.set_number('Mesh.MshFileVersion', MSH_VER)
     gmsh.option.set_number('Mesh.MeshSizeFactor', SIZE_FACTOR)
 
+    distance = gmsh.model.mesh.field.add("Distance")
+    gmsh.model.mesh.field.setNumbers(distance, "CurvesList", [14, 13, 18, 17, 8])
+    gmsh.model.mesh.field.setNumbers(distance, "PointsList", [10])
+
+    threshold = gmsh.model.mesh.field.add("Threshold")
+    gmsh.model.mesh.field.setNumber(threshold, "IField", distance)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMin", 0.1 * SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMax", SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMin", 0)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMax", 0.1)
+    
+    constant_min = gmsh.model.mesh.field.add("Constant")
+    gmsh.model.mesh.field.setNumbers(constant_min, "SurfacesList", [1])
+    gmsh.model.mesh.field.setNumber(constant_min, "VIn", 0.5)
+    gmsh.model.mesh.field.setNumber(constant_min, "VOut", 0.01)
+    
+    maximum = gmsh.model.mesh.field.add("Max")
+    gmsh.model.mesh.field.setNumbers(maximum, "FieldsList", [threshold, constant_min])
+
+    gmsh.model.mesh.field.setAsBackgroundMesh(maximum)
+
     gmsh.model.mesh.generate(2)
-    gmsh.write(OUTPUT_DIR + f'BCS_S--SD0.16--DZ0.00--NZ1--clscale1.25e-01.msh')
+    gmsh.write(OUTPUT_DIR + f'BCS_S--SD0.16--DZ0.00--NZ1--clscale{SIZE_FACTOR:.2e}.msh')
 
 # Generate inferior scar with radius of 0.04 cm
 def proc_BCS_I_04():
@@ -279,8 +468,29 @@ def proc_BCS_I_04():
     gmsh.option.set_number('Mesh.MshFileVersion', MSH_VER)
     gmsh.option.set_number('Mesh.MeshSizeFactor', SIZE_FACTOR)
 
+    distance = gmsh.model.mesh.field.add("Distance")
+    gmsh.model.mesh.field.setNumbers(distance, "CurvesList", [3, 15, 14, 1, 13])
+    gmsh.model.mesh.field.setNumbers(distance, "PointsList", [12])
+
+    threshold = gmsh.model.mesh.field.add("Threshold")
+    gmsh.model.mesh.field.setNumber(threshold, "IField", distance)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMin", 0.1 * SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMax", SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMin", 0)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMax", 0.1)
+    
+    constant_min = gmsh.model.mesh.field.add("Constant")
+    gmsh.model.mesh.field.setNumbers(constant_min, "SurfacesList", [3])
+    gmsh.model.mesh.field.setNumber(constant_min, "VIn", 0.5)
+    gmsh.model.mesh.field.setNumber(constant_min, "VOut", 0.01)
+    
+    maximum = gmsh.model.mesh.field.add("Max")
+    gmsh.model.mesh.field.setNumbers(maximum, "FieldsList", [threshold, constant_min])
+
+    gmsh.model.mesh.field.setAsBackgroundMesh(maximum)
+
     gmsh.model.mesh.generate(2)
-    gmsh.write(OUTPUT_DIR + f'BCS_I--SD0.04--DZ0.00--NZ1--clscale1.25e-01.msh')
+    gmsh.write(OUTPUT_DIR + f'BCS_I--SD0.04--DZ0.00--NZ1--clscale{SIZE_FACTOR:.2e}.msh')
 
 # Generate inferior scar with radius of 0.08 cm
 def proc_BCS_I_08():
@@ -306,8 +516,29 @@ def proc_BCS_I_08():
     gmsh.option.set_number('Mesh.MshFileVersion', MSH_VER)
     gmsh.option.set_number('Mesh.MeshSizeFactor', SIZE_FACTOR)
 
+    distance = gmsh.model.mesh.field.add("Distance")
+    gmsh.model.mesh.field.setNumbers(distance, "CurvesList", [3, 15, 14, 1, 13])
+    gmsh.model.mesh.field.setNumbers(distance, "PointsList", [12])
+
+    threshold = gmsh.model.mesh.field.add("Threshold")
+    gmsh.model.mesh.field.setNumber(threshold, "IField", distance)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMin", 0.1 * SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMax", SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMin", 0)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMax", 0.1)
+    
+    constant_min = gmsh.model.mesh.field.add("Constant")
+    gmsh.model.mesh.field.setNumbers(constant_min, "SurfacesList", [3])
+    gmsh.model.mesh.field.setNumber(constant_min, "VIn", 0.5)
+    gmsh.model.mesh.field.setNumber(constant_min, "VOut", 0.01)
+    
+    maximum = gmsh.model.mesh.field.add("Max")
+    gmsh.model.mesh.field.setNumbers(maximum, "FieldsList", [threshold, constant_min])
+
+    gmsh.model.mesh.field.setAsBackgroundMesh(maximum)
+
     gmsh.model.mesh.generate(2)
-    gmsh.write(OUTPUT_DIR + f'BCS_I--SD0.08--DZ0.00--NZ1--clscale1.25e-01.msh')
+    gmsh.write(OUTPUT_DIR + f'BCS_I--SD0.08--DZ0.00--NZ1--clscale{SIZE_FACTOR:.2e}.msh')
 
 # Generate inferior scar with radius of 0.12 cm
 def proc_BCS_I_12():
@@ -333,8 +564,29 @@ def proc_BCS_I_12():
     gmsh.option.set_number('Mesh.MshFileVersion', MSH_VER)
     gmsh.option.set_number('Mesh.MeshSizeFactor', SIZE_FACTOR)
 
+    distance = gmsh.model.mesh.field.add("Distance")
+    gmsh.model.mesh.field.setNumbers(distance, "CurvesList", [9, 20, 19, 12, 16])
+    gmsh.model.mesh.field.setNumbers(distance, "PointsList", [13])
+
+    threshold = gmsh.model.mesh.field.add("Threshold")
+    gmsh.model.mesh.field.setNumber(threshold, "IField", distance)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMin", 0.1 * SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMax", SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMin", 0)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMax", 0.1)
+    
+    constant_min = gmsh.model.mesh.field.add("Constant")
+    gmsh.model.mesh.field.setNumbers(constant_min, "SurfacesList", [1])
+    gmsh.model.mesh.field.setNumber(constant_min, "VIn", 0.5)
+    gmsh.model.mesh.field.setNumber(constant_min, "VOut", 0.01)
+    
+    maximum = gmsh.model.mesh.field.add("Max")
+    gmsh.model.mesh.field.setNumbers(maximum, "FieldsList", [threshold, constant_min])
+
+    gmsh.model.mesh.field.setAsBackgroundMesh(maximum)
+
     gmsh.model.mesh.generate(2)
-    gmsh.write(OUTPUT_DIR + f'BCS_I--SD0.12--DZ0.00--NZ1--clscale1.25e-01.msh')
+    gmsh.write(OUTPUT_DIR + f'BCS_I--SD0.12--DZ0.00--NZ1--clscale{SIZE_FACTOR:.2e}.msh')
 
 # Generate inferior scar with radius of 0.16 cm
 def proc_BCS_I_16():
@@ -360,11 +612,32 @@ def proc_BCS_I_16():
     gmsh.option.set_number('Mesh.MshFileVersion', MSH_VER)
     gmsh.option.set_number('Mesh.MeshSizeFactor', SIZE_FACTOR)
 
+    distance = gmsh.model.mesh.field.add("Distance")
+    gmsh.model.mesh.field.setNumbers(distance, "CurvesList", [9, 20, 19, 12, 16])
+    gmsh.model.mesh.field.setNumbers(distance, "PointsList", [13])
+
+    threshold = gmsh.model.mesh.field.add("Threshold")
+    gmsh.model.mesh.field.setNumber(threshold, "IField", distance)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMin", 0.1 * SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "LcMax", SIZE_FACTOR)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMin", 0)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMax", 0.1)
+    
+    constant_min = gmsh.model.mesh.field.add("Constant")
+    gmsh.model.mesh.field.setNumbers(constant_min, "SurfacesList", [1])
+    gmsh.model.mesh.field.setNumber(constant_min, "VIn", 0.5)
+    gmsh.model.mesh.field.setNumber(constant_min, "VOut", 0.01)
+    
+    maximum = gmsh.model.mesh.field.add("Max")
+    gmsh.model.mesh.field.setNumbers(maximum, "FieldsList", [threshold, constant_min])
+
+    gmsh.model.mesh.field.setAsBackgroundMesh(maximum)
+
     gmsh.model.mesh.generate(2)
-    gmsh.write(OUTPUT_DIR + f'BCS_I--SD0.16--DZ0.00--NZ1--clscale1.25e-01.msh')
+    gmsh.write(OUTPUT_DIR + f'BCS_I--SD0.16--DZ0.00--NZ1--clscale{SIZE_FACTOR:.2e}.msh')
 
 def sensitivity_study():
-    SIZE_FACTORS = [1, 0.5, 0.25, 0.125, 0.08]
+    SIZE_FACTORS = [0.5, 0.25, 0.125]
 
     for size_factor in SIZE_FACTORS:
         """
