@@ -560,6 +560,26 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
         params = [
             make_param(*args) for args in it.product(CLSCALES, DEL_T, SCAR_DIAS)
         ]
+    # Study to find slightly better parameters, as study shows pressed voice
+    elif study_name == 'parameters_study':
+        def make_param(psub, mod):
+            return DEFAULT_PARAM_2D.substitute({
+                'MeshName': 'BCS_S',
+                'clscale': 0.25, 
+                'psub': psub,
+                'Ecov': ECOV*mod,
+                'Ebod': EBOD*mod, 
+                'SD': 0,
+                'dt': 5e-5,
+                'tf': 0.5,
+                ''
+            })
+        PSUBS = [200 * 10, 300 * 10, 400 * 10]
+        MODS = [0.5, 1, 1.5, 2, 4]
+
+        params = [
+            make_param(*args) for args in it.product(PSUBS, MODS)
+        ]
     else:
         raise ValueError(f"Unknown `--study-name` {study_name}")
     return params
