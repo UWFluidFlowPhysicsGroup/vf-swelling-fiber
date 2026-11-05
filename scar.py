@@ -571,8 +571,7 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
                 'Ebod': EBOD*mod, 
                 'SD': 0,
                 'dt': 5e-5,
-                'tf': 0.5,
-                ''
+                'tf': 0.5
             })
         PSUBS = [200 * 10, 300 * 10, 400 * 10]
         MODS = [0.5, 1, 1.5, 2, 4]
