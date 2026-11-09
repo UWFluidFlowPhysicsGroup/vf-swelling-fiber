@@ -38,14 +38,14 @@ CLSCALE = 0.25
 
 POISSONS_RATIO = 0.4
 
-PSUB = 300 * 10
+PSUB = 700 * 10
 
 # Viscosity
 ETA = 5
 
 # Elasticity
-ECOV = 2.5e4
-EBOD = 5e4
+ECOV = 5e4
+EBOD = 10e4
 # Scar tissue viscoelastic modifier
 MODSCAR = 10
 MODSCARS = np.array([1, 2, 4, 10, 20, 40])
@@ -134,8 +134,8 @@ def setup_state_control_props(
         ymax = (model.solid.XREF + state0.sub['u'])[1::ndim].max()
     else:
         ymax = (model.solid.XREF)[1::ndim].max()
-    ygap = 0.02 # 0.2 mm half-gap -> 0.4 mm glottal gap
-    ycoll_offset = 1/10*ygap
+    ygap = 0.01 # 0.2 mm half-gap -> 0.4 mm glottal gap
+    ycoll_offset = 1/2*ygap
 
     prop['ycontact'] = ymax + ygap - ycoll_offset
     prop['ymid'] = ymax + ygap
@@ -562,22 +562,25 @@ def make_exp_params(study_name: str) -> List[ExpParam]:
         ]
     # Study to find slightly better parameters, as study shows pressed voice
     elif study_name == 'parameters_study':
-        def make_param(psub, mod):
+        def make_param(psub, ecov, ebod):
             return DEFAULT_PARAM_2D.substitute({
                 'MeshName': 'BCS_S',
                 'clscale': 0.25, 
                 'psub': psub,
-                'Ecov': ECOV*mod,
-                'Ebod': EBOD*mod, 
+                'Ecov': ecov,
+                'Ebod': ebod, 
                 'SD': 0,
                 'dt': 5e-5,
                 'tf': 0.5
             })
-        PSUBS = [200 * 10, 300 * 10, 400 * 10]
-        MODS = [0.5, 1, 1.5, 2, 4]
+        PSUBS = [4e3, 5e3, 6e3, 7e3]
+        # COVMODS = [0.75, 1, 1.5, 2, 4]
+        # BODMODS = [0.75, 1, 1.5, 2, 4]
+        ECOVS = [5e4]
+        EBODS = [5e4, 7.5e4, 10e4]
 
         params = [
-            make_param(*args) for args in it.product(PSUBS, MODS)
+            make_param(*args) for args in it.product(PSUBS, ECOVS, EBODS)
         ]
     else:
         raise ValueError(f"Unknown `--study-name` {study_name}")
